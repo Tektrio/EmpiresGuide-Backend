@@ -110,13 +110,28 @@ function processTypeScriptContent(content) {
 
   // Remover anotações de tipo em declarações de variáveis
   content = content.replace(/(const|let|var)\s+(\w+)\s*:\s*[^=;]+(=|;)/g, '$1 $2 $3');
-
+  
+  // Remover anotações de tipo em parâmetros de funções arrow
+  content = content.replace(/(\([\w\s,]*)\s*:\s*[\w\.<>\[\]|, ]+(\s*[,\)])/g, '$1$2');
+  
+  // Lidar com várias anotações de tipo em parâmetros de função
+  // Exemplo: (req: Request, res: Response, next: NextFunction)
+  let lastContent = '';
+  while (lastContent !== content) {
+    lastContent = content;
+    content = content.replace(/(\(\w+\s*):[\w\.<>\[\]|, ]+(\s*,|\))/g, '$1$2');
+    content = content.replace(/,\s*(\w+\s*):[\w\.<>\[\]|, ]+(\s*,|\))/g, ', $1$2');
+  }
+  
   // Remover anotações de tipo em parâmetros de funções
   content = content.replace(/(\(.*?\))\s*:\s*[^\{]+\{/g, '$1 {');
-
+  
   // Remover anotações de tipo em retornos de funções
   content = content.replace(/\)\s*:\s*[^{]+\{/g, ') {');
-
+  
+  // Remover tipos genéricos
+  content = content.replace(/<[^>]+>/g, '');
+  
   return content;
 }
 
