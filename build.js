@@ -71,13 +71,29 @@ function copyDir(src, dest) {
       const processedContent = content
         .replace(/import\s+[^;]+\s+from\s+['"]@types\/[^'"]+['"]/g, '')
         .replace(/import\s+type\s+[^;]+\s+from\s+[^;]+;/g, '')
+        // Converter todos os imports para formato CommonJS
+        .replace(/import\s+(\w+)\s+from\s+['"]([^'"]+)['"]/g, 'const $1 = require("$2")')
         // Lidar com imports desestruturados
-        .replace(/import\s+{\s*connectDB\s*}/, 'import connectDB')
-        // Converter import { X } from Y para import X from Y para compatibilidade com CommonJS
-        .replace(/import\s+{\s*([^{}]+)\s*}\s+from\s+['"]([^'"]+)['"]/g, (match, importName, path) => {
-          // Se for um import múltiplo, manter desestruturado
-          if (importName.includes(',')) return match;
-          return `import ${importName} from '${path}'`;
+        .replace(/import\s+{\s*([^{}]+)\s*}\s+from\s+['"]([^'"]+)['"]/g, (match, importNames, modulePath) => {
+          // Processar cada importação individualmente para lidar com possíveis aliases
+          const imports = importNames.split(',').map(name => {
+            name = name.trim();
+            if (name.includes(' as ')) {
+              const [originalName, alias] = name.split(' as ').map(s => s.trim());
+              return `const ${alias} = require("${modulePath}").${originalName}`;
+            }
+            return `const ${name} = require("${modulePath}").${name}`;
+          }).join(';\n');
+          return imports;
+        })
+        // Converter export default
+        .replace(/export\s+default\s+(\w+)/g, 'module.exports = $1')
+        // Converter export const, class, function, etc
+        .replace(/export\s+(const|let|var|function|class)\s+(\w+)/g, '$1 $2; module.exports.$2 = $2')
+        // Converter export { ... }
+        .replace(/export\s+{([^}]+)}/g, (match, exportNames) => {
+          const names = exportNames.split(',').map(name => name.trim());
+          return `module.exports = Object.assign(module.exports || {}, { ${names.join(', ')} })`;
         });
         
       fs.writeFileSync(destJsPath, processedContent);

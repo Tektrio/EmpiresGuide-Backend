@@ -2,6 +2,7 @@
   "name": "backend",
   "version": "1.0.0",
   "main": "dist/index.js",
+  "type": "commonjs",
   "scripts": {
     "start": "NODE_ENV=production node dist/index.js",
     "start:dev": "NODE_ENV=development nodemon --exec 'TS_NODE_TRANSPILE_ONLY=true ts-node' src/index.ts",
