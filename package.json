@@ -23,7 +23,7 @@
     "fix-express": "node fix-express-types.js"
   },
   "engines": {
-    "node": "18.x"
+    "node": "18.20.7"
   },
   "keywords": [],
   "author": "",
