@@ -2,7 +2,7 @@ services:
   - type: web
     name: empiresguide-api
     env: node
-    buildCommand: npm install && npm run build
+    buildCommand: chmod +x prebuild.sh && ./prebuild.sh && npm install && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV

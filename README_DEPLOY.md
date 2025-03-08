@@ -72,3 +72,28 @@ Se o deploy falhar, verifique:
 2. Certifique-se de que todas as variáveis de ambiente necessárias estão configuradas
 3. Verifique se o MongoDB está acessível do Render
 4. Certifique-se de que o disco foi montado corretamente para os uploads
+
+### Problemas de Tipagem TypeScript
+
+Se você encontrar erros relacionados a declarações de tipo durante o build:
+
+1. Verifique se o package.json contém as dependências de desenvolvimento necessárias:
+   ```json
+   "devDependencies": {
+     "@types/express": "^4.17.21",
+     "@types/cors": "^2.8.17",
+     "@types/node": "^20.11.24",
+     "@types/jsonwebtoken": "^9.0.9",
+     "@types/bcryptjs": "^2.4.6"
+   }
+   ```
+
+2. Se os erros persistirem, você pode:
+   - Executar o script `prebuild.sh` localmente para instalar os tipos
+   - Verificar se a pasta `src/types` contém as declarações necessárias
+   - Temporariamente, desativar verificações estritas de tipo no `tsconfig.json`
+
+3. Para forçar a reinstalação de tipos no Render, você pode usar:
+   ```
+   rm -rf node_modules/@types && npm install
+   ```
