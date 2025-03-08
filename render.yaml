@@ -2,12 +2,14 @@ services:
   - type: web
     name: empiresguide-api
     env: node
+    runtime: node
     buildCommand: |
       chmod +x prebuild.sh
       ./prebuild.sh
-      npm install
-      npm run build:prod
-    startCommand: npm start
+      npm install --no-optional
+      chmod +x build.js
+      node build.js
+    startCommand: node dist/index.js
     envVars:
       - key: NODE_ENV
         value: production
@@ -24,6 +26,8 @@ services:
       - key: SKIP_PREFLIGHT_CHECK
         value: true
       - key: SKIP_TYPE_CHECK
+        value: true
+      - key: TS_NODE_TRANSPILE_ONLY
         value: true
     healthCheckPath: /api/ping
     autoDeploy: true
