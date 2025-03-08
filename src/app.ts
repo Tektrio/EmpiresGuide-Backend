@@ -44,6 +44,35 @@ app.get('/api/ping', (req, res) => {
   });
 });
 
+// Middleware para verificar status do MongoDB
+// Se for null, respondemos com erro 503 para rotas que precisam de banco de dados
+app.use((req, res, next) => {
+  // Exclui rotas que não precisam de banco de dados
+  if (
+    req.path === '/' || 
+    req.path === '/api/ping' || 
+    req.path.startsWith('/health')
+  ) {
+    return next();
+  }
+
+  // Verificar se há uma conexão global (definida no mongoose)
+  if (
+    !global.mongoose || 
+    !global.mongoose.connection || 
+    global.mongoose.connection.readyState !== 1
+  ) {
+    // Responder com erro de serviço temporariamente indisponível
+    return res.status(503).json({
+      status: 'error',
+      message: 'Database service temporarily unavailable',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  next();
+});
+
 // Rotas
 app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
@@ -54,9 +83,17 @@ app.use('/api/guides', strategyGuideRoutes);
 
 // Rota básica de teste
 app.get('/', (req, res) => {
+  // Verificar status da conexão com o banco de dados
+  const dbConnected = global.mongoose && 
+                     global.mongoose.connection && 
+                     global.mongoose.connection.readyState === 1;
+
   res.json({ 
     message: 'API de Estratégias para Age of Empires IV',
     version: '1.0.0',
+    status: dbConnected ? 'fully_operational' : 'limited_service',
+    timestamp: new Date().toISOString(),
+    db_status: dbConnected ? 'connected' : 'disconnected',
     endpoints: [
       '/api/users - Gerenciamento de usuários',
       '/api/auth - Autenticação e verificação de usuários',
@@ -65,6 +102,15 @@ app.get('/', (req, res) => {
       '/api/strategies - Estratégias gerais',
       '/api/guides - Guias de estratégia'
     ]
+  });
+});
+
+// Middleware para tratar rotas não encontradas
+app.use((req, res) => {
+  res.status(404).json({
+    status: 'error',
+    message: 'Endpoint não encontrado',
+    path: req.path
   });
 });
 

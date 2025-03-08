@@ -172,25 +172,48 @@ const connectDB = async () => {
       throw new Error('Variáveis de ambiente de banco de dados não definidas');
     }
     
+    // Opções da conexão para mais resiliência
+    const mongooseOptions = {
+      serverSelectionTimeoutMS: 5000, // Timeout de 5 segundos para tentar conectar
+      retryWrites: true,
+      socketTimeoutMS: 45000, // Timeout de 45 segundos para operações de socket
+      family: 4 // Forçar IPv4
+    };
+    
     // Tenta conectar ao MongoDB Atlas
-    const conn = await mongoose.connect(connectionString);
+    const conn = await mongoose.connect(connectionString, mongooseOptions);
     console.log(`✅ MongoDB Atlas Conectado: ${conn.connection.host}`);
+    
+    // Atribuir mongoose ao contexto global para acesso em outros módulos
+    (global as any).mongoose = mongoose;
+    
     return conn;
   } catch (error) {
     console.error(`❌ Erro ao conectar ao MongoDB Atlas: ${error instanceof Error ? error.message : String(error)}`);
     
     if (process.env.NODE_ENV === 'production') {
-      console.error('❌ Falha crítica em ambiente de produção. O servidor será encerrado.');
-      process.exit(1);
+      console.warn('⚠️ Falha na conexão com MongoDB em ambiente de produção, usando banco em memória como fallback de emergência');
+      
+      // Configurar banco de dados em memória como fallback mesmo em produção
+      const mockDB = setupMemoryMockDB();
+      try {
+        const conn = await mockDB.connect();
+        console.log(`✅ Conectado ao banco de dados em memória: ${conn.connection.host}`);
+        return conn;
+      } catch (mockError) {
+        console.error('❌ Falha ao configurar banco de dados em memória');
+        console.log('⚠️ Sistema executando com funcionalidade limitada!');
+        return null; // Retornar null para evitar interrupção da aplicação
+      }
+    } else {
+      console.log('⚠️ Usando banco de dados em memória para desenvolvimento...');
+      
+      // Configurar banco de dados em memória como fallback
+      const mockDB = setupMemoryMockDB();
+      const conn = await mockDB.connect();
+      console.log(`✅ Conectado ao banco de dados em memória: ${conn.connection.host}`);
+      return conn;
     }
-    
-    console.log('⚠️ Usando banco de dados em memória para desenvolvimento...');
-    
-    // Configurar banco de dados em memória como fallback
-    const mockDB = setupMemoryMockDB();
-    const conn = await mockDB.connect();
-    console.log(`✅ Conectado ao banco de dados em memória: ${conn.connection.host}`);
-    return conn;
   }
 };
 

@@ -29,9 +29,18 @@ services:
         value: true
       - key: TS_NODE_TRANSPILE_ONLY
         value: true
+      - key: MONGODB_TOLERANCE_MODE
+        value: true
+      - key: ALLOW_MOCK_DB_IN_PRODUCTION
+        value: true
     healthCheckPath: /api/ping
     autoDeploy: true
     disk:
       name: uploads
       mountPath: /uploads
-      sizeGB: 1 
+      sizeGB: 1
+    scaling:
+      minInstances: 1
+      maxInstances: 1
+    # Definir limites de CPU e memória
+    plan: free 
