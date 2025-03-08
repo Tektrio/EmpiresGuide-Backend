@@ -166,7 +166,11 @@ console.log('✅ Build finalizado com sucesso!');
 // Se estiver no ambiente Render, exibir informações adicionais
 if (isRenderEnvironment) {
   console.log("\n=== Informações de Instalação ===");
-  runCommand('ls -la ./dist');
+  try {
+    console.log(execSync('ls -la ./dist').toString());
+  } catch (error) {
+    console.error('❌ Erro ao listar arquivos:', error.message);
+  }
   console.log("====================\n");
 }
 
