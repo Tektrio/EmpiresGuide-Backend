@@ -8,6 +8,13 @@ const { execSync } = require('child_process');
 const isRenderEnvironment = process.env.RENDER === 'true' || process.env.RENDER === 'TRUE';
 console.log(`🚀 Ambiente de execução: ${isRenderEnvironment ? 'Render' : 'Local'}`);
 
+// Configurar variáveis de ambiente para o Render
+if (isRenderEnvironment && fs.existsSync('./.env.render')) {
+  console.log('📄 Copiando .env.render para .env no ambiente Render...');
+  fs.copyFileSync('./.env.render', './.env');
+  console.log('✅ Arquivo .env configurado com sucesso.');
+}
+
 // Definir diretórios
 const srcDir = path.join(__dirname, 'src');
 const distDir = path.join(__dirname, 'dist');
