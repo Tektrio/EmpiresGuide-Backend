@@ -4,118 +4,164 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-// Verificar ambiente Render
-const isRenderEnvironment = process.env.RENDER !== undefined;
-console.log(`🚀 Ambiente de execução: ${isRenderEnvironment ? 'Render.com' : 'Local'}`);
+// Verifica o ambiente
+const isRenderEnvironment = process.env.RENDER === 'true' || process.env.RENDER === 'TRUE';
+console.log(`🚀 Ambiente de execução: ${isRenderEnvironment ? 'Render' : 'Local'}`);
 
-// Função para executar comandos com logs
-function runCommand(command) {
-  console.log(`Executando: ${command}`);
-  try {
-    execSync(command, { stdio: 'inherit' });
-    return true;
-  } catch (error) {
-    console.error(`❌ Erro ao executar o comando: ${error.message}`);
-    return false;
-  }
+// Define os caminhos
+const srcDir = path.join(__dirname, 'src');
+const distDir = path.join(__dirname, 'dist');
+
+// Cria o diretório dist se não existir
+console.log('📁 Criando diretório dist...');
+if (!fs.existsSync(distDir)) {
+  fs.mkdirSync(distDir);
 }
 
-// Função para garantir que um diretório existe
-function ensureDirectoryExists(dir) {
-  if (!fs.existsSync(dir)) {
-    console.log(`Criando diretório: ${dir}`);
-    fs.mkdirSync(dir, { recursive: true });
-    return true;
+// Função para processar o conteúdo de arquivos TypeScript
+function processTypeScriptContent(content) {
+  // Remover importações de tipos
+  content = content.replace(/import\s+type\s+[^;]+\s*;/g, '');
+  content = content.replace(/import\s+\{\s*([^}]*?Type[^}]*?)\s*\}\s+from\s+['"][^'"]+['"];?/g, '');
+  content = content.replace(/import\s+[^;]+\s+from\s+['"]@types\/[^'"]+['"]/g, '');
+
+  // Processar primeiro as importações desestruturadas com nomes e tipos específicos
+  // import express, { Request, Response, NextFunction } from 'express';
+  content = content.replace(/import\s+(\w+),\s*\{\s*([^}]+)\s*\}\s+from\s+['"]([^'"]+)['"]/g, (match, defaultImport, namedImports, module) => {
+    // Remover anotações de tipo nas importações desestruturadas
+    const cleanImports = namedImports.split(',')
+      .map(item => item.trim().split(':')[0].trim())
+      .join(', ');
+    
+    return `const ${defaultImport} = require("${module}");\nconst { ${cleanImports} } = require("${module}");`;
+  });
+
+  // Converter importações ESM em requires do CommonJS
+  // 1. Import padrão: import x from 'y'; -> const x = require('y');
+  content = content.replace(/import\s+(\w+)\s+from\s+['"]([^'"]+)['"]/g, 'const $1 = require("$2")');
+
+  // 2. Import desestruturado: import { x, y } from 'z'; -> const { x, y } = require('z');
+  content = content.replace(/import\s+\{\s*([^}]+)\s*\}\s+from\s+['"]([^'"]+)['"]/g, (match, imports, module) => {
+    // Remover anotações de tipo nas importações desestruturadas
+    const cleanImports = imports.split(',')
+      .map(item => {
+        // Remove anotações de tipo ou aliases complexos
+        return item.trim().split(':')[0].trim();
+      })
+      .join(', ');
+    
+    return `const { ${cleanImports} } = require("${module}")`;
+  });
+
+  // 3. Import com namespace: import * as x from 'y'; -> const x = require('y');
+  content = content.replace(/import\s+\*\s+as\s+(\w+)\s+from\s+['"]([^'"]+)['"]/g, 'const $1 = require("$2")');
+
+  // Converter export padrão para module.exports
+  content = content.replace(/export\s+default\s+(\w+)/g, 'module.exports = $1');
+
+  // Converter export constante/let/var/function para module.exports.x = x
+  const namedExportRegex = /export\s+(const|let|var|function|class)\s+(\w+)/g;
+  let namedExportMatch;
+  const exportedNames = [];
+  
+  while ((namedExportMatch = namedExportRegex.exec(content)) !== null) {
+    const exportedName = namedExportMatch[2];
+    exportedNames.push(exportedName);
+    content = content.replace(
+      new RegExp(`export\\s+(const|let|var|function|class)\\s+${exportedName}`, 'g'), 
+      `$1 ${exportedName}`
+    );
   }
-  return false;
+
+  // Adicionar exportações nomeadas ao final do arquivo
+  if (exportedNames.length > 0) {
+    // Primeiro verifica se já existe um module.exports no arquivo
+    if (!content.includes('module.exports =')) {
+      // Se não existe, adicionamos as exportações nomeadas
+      const exportStatements = exportedNames.map(name => `module.exports.${name} = ${name};`).join('\n');
+      content += '\n\n' + exportStatements;
+    } else {
+      // Caso contrário, modificamos as exportações existentes
+      exportedNames.forEach(name => {
+        if (!content.includes(`module.exports.${name} =`)) {
+          content = content.replace(
+            /module\.exports(\s+=\s+\w+)/,
+            `module.exports$1\nmodule.exports.${name} = ${name};`
+          );
+        }
+      });
+    }
+  }
+
+  // Converter export desestruturado: export { x, y }; -> module.exports.x = x; module.exports.y = y;
+  content = content.replace(/export\s+\{\s*([^}]+)\s*\};?/g, (match, exports) => {
+    const exportLines = exports.split(',')
+      .map(item => {
+        const trimmedItem = item.trim();
+        return `module.exports.${trimmedItem} = ${trimmedItem};`;
+      })
+      .join('\n');
+    return exportLines;
+  });
+
+  // Remover as definições de interface e type
+  content = content.replace(/interface\s+[^{]*\{[^}]*\}\s*;?/g, '');
+  content = content.replace(/type\s+[^=]*=[^;]*;/g, '');
+
+  // Remover anotações de tipo
+  content = content.replace(/:\s*[A-Za-z0-9_<>[\],\s|&]+(?=(\s*=|\s*\)|\s*,|\s*;|\s*\{))/g, '');
+  content = content.replace(/:\s*[A-Za-z0-9_]+\[\]/g, '');  // Remove tipos de array como: x: string[]
+  content = content.replace(/<[^>]+>/g, '');  // Remove generic types
+
+  return content;
 }
 
-// Configurar variáveis de ambiente
-if (isRenderEnvironment) {
-  console.log("Configurando variáveis de ambiente...");
-  try {
-    if (fs.existsSync('./.env.render')) {
-      fs.copyFileSync('./.env.render', './.env');
-      console.log("✅ Arquivo .env.render copiado para .env");
-    } 
-  } catch (error) {
-    console.error(`❌ Erro ao copiar .env.render: ${error.message}`);
-  }
-}
-
-// Garantir que o diretório dist existe
-console.log("📁 Criando diretório dist...");
-ensureDirectoryExists('./dist');
-
-// Função recursiva para copiar diretório
+// Função para copiar um diretório recursivamente 
 function copyDir(src, dest) {
-  ensureDirectoryExists(dest);
+  fs.mkdirSync(dest, { recursive: true });
   
   const entries = fs.readdirSync(src, { withFileTypes: true });
   
-  for (let entry of entries) {
+  for (const entry of entries) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
     
     if (entry.isDirectory()) {
-      // Ignorar diretório types
-      if (entry.name === 'types' && src.endsWith('src')) {
-        continue;
-      }
       copyDir(srcPath, destPath);
-    } else if (entry.name.endsWith('.ts')) {
-      // Converter .ts para .js e copiar
-      const destJsPath = destPath.replace('.ts', '.js');
-      const content = fs.readFileSync(srcPath, 'utf8');
-      // Remover imports de tipagem e corrigir imports
-      const processedContent = content
-        .replace(/import\s+[^;]+\s+from\s+['"]@types\/[^'"]+['"]/g, '')
-        .replace(/import\s+type\s+[^;]+\s+from\s+[^;]+;/g, '')
-        // Converter todos os imports para formato CommonJS
-        .replace(/import\s+(\w+)\s+from\s+['"]([^'"]+)['"]/g, 'const $1 = require("$2")')
-        // Lidar com imports desestruturados
-        .replace(/import\s+{\s*([^{}]+)\s*}\s+from\s+['"]([^'"]+)['"]/g, (match, importNames, modulePath) => {
-          // Processar cada importação individualmente para lidar com possíveis aliases
-          const imports = importNames.split(',').map(name => {
-            name = name.trim();
-            if (name.includes(' as ')) {
-              const [originalName, alias] = name.split(' as ').map(s => s.trim());
-              return `const ${alias} = require("${modulePath}").${originalName}`;
-            }
-            return `const ${name} = require("${modulePath}").${name}`;
-          }).join(';\n');
-          return imports;
-        })
-        // Converter export default
-        .replace(/export\s+default\s+(\w+)/g, 'module.exports = $1')
-        // Converter export const, class, function, etc
-        .replace(/export\s+(const|let|var|function|class)\s+(\w+)/g, '$1 $2; module.exports.$2 = $2')
-        // Converter export { ... }
-        .replace(/export\s+{([^}]+)}/g, (match, exportNames) => {
-          const names = exportNames.split(',').map(name => name.trim());
-          return `module.exports = Object.assign(module.exports || {}, { ${names.join(', ')} })`;
-        });
-        
-      fs.writeFileSync(destJsPath, processedContent);
     } else {
-      // Copiar outros arquivos sem alteração
-      fs.copyFileSync(srcPath, destPath);
+      // Se for um arquivo TypeScript
+      if (entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts')) {
+        // Lê o conteúdo do arquivo
+        let content = fs.readFileSync(srcPath, 'utf8');
+        
+        // Processa o conteúdo do arquivo TypeScript
+        content = processTypeScriptContent(content);
+        
+        // Salva o arquivo com extensão .js
+        const destPathJs = destPath.replace(/\.ts$/, '.js');
+        fs.writeFileSync(destPathJs, content);
+      } 
+      // Copia outros arquivos diretamente
+      else if (!entry.name.endsWith('.d.ts')) {
+        fs.copyFileSync(srcPath, destPath);
+      }
     }
   }
 }
 
-// Sempre usar a cópia direta agora
-console.log("⚙️ Realizando conversão direta TS -> JS via cópia...");
-copyDir('./src', './dist');
-console.log("✅ Cópia direta de arquivos concluída");
+// Realiza a cópia direta de TypeScript para JavaScript
+console.log('⚙️ Realizando conversão direta TS -> JS via cópia...');
+copyDir(srcDir, distDir);
+console.log('✅ Cópia direta de arquivos concluída');
 
-// Verificar se o build foi bem-sucedido
-if (!fs.existsSync('./dist/index.js')) {
-  console.error("❌ Falha crítica: Não foi possível gerar dist/index.js");
-  process.exit(1);
+// Cria o diretório de logs se necessário
+const logsDir = path.join(__dirname, 'logs');
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir);
 }
 
-console.log("✅ Build finalizado com sucesso!");
+// Finalização
+console.log('✅ Build finalizado com sucesso!');
 
 // Se estiver no ambiente Render, exibir informações adicionais
 if (isRenderEnvironment) {
