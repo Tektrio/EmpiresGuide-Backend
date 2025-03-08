@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: empiresguide-api
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      # As variáveis abaixo devem ser configuradas no dashboard do Render
+      # - key: MONGODB_URI
+      #   value: mongodb+srv://seu-usuario:senha@cluster.mongodb.net/database
+      # - key: JWT_SECRET
+      #   value: sua-chave-secreta
+      - key: USE_COMPLETE_MATCHUPS
+        value: false 
