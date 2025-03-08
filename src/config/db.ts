@@ -37,7 +37,7 @@ const connectDB = async () => {
     }
     
     // Opções da conexão para mais resiliência
-    const connectOptions = {
+    const connectOptions: mongoose.ConnectOptions = {
       serverSelectionTimeoutMS: 10000, // 10 segundos (padrão é 30s)
       retryWrites: true,
       socketTimeoutMS: 45000, // 45 segundos

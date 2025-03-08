@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import dotenv from 'dotenv';
 // @ts-ignore
 import statusMonitor from 'express-status-monitor';
@@ -16,6 +16,7 @@ import fs from 'fs';
 import path from 'path';
 import mongoose from 'mongoose';
 import { connectDB } from './config/db';
+import ratingRoutes from './routes/ratingRoutes';
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -28,21 +29,13 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // Middleware
-app.use(express.json());
-
-// Middleware para CORS
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  if (req.method === 'OPTIONS') {
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH');
-    return res.status(200).json({});
-  }
-  next();
-});
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(cors());
+app.use(helmet());
 
 // Middleware para verificar o estado da conexão com o banco de dados
-const dbConnectionMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+const dbConnectionMiddleware = (req: Request, res: Response, next: NextFunction) => {
   // Lista de rotas que devem funcionar mesmo sem banco de dados
   const nonDbRoutes = [
     '/',
@@ -78,7 +71,7 @@ const dbConnectionMiddleware = (req: express.Request, res: express.Response, nex
 
 // Rotas de health check
 app.use('/health', healthRoutes);
-app.get('/api/ping', (req, res) => {
+app.get('/api/ping', (req: Request, res: Response) => {
   res.status(200).json({ 
     status: 'success',
     message: 'Servidor online',
@@ -88,7 +81,7 @@ app.get('/api/ping', (req, res) => {
 
 // Middleware para verificar status do MongoDB
 // Se for null, respondemos com erro 503 para rotas que precisam de banco de dados
-app.use((req, res, next) => {
+app.use((req: Request, res: Response, next: NextFunction) => {
   // Exclui rotas que não precisam de banco de dados
   if (
     req.path === '/' || 
@@ -122,9 +115,10 @@ app.use('/api/contributions', contributionRoutes);
 app.use('/api/matchups', matchupRoutes);
 app.use('/api/strategies', strategyRoutes);
 app.use('/api/guides', strategyGuideRoutes);
+app.use('/api/ratings', ratingRoutes);
 
 // Rota básica de teste
-app.get('/', (req, res) => {
+app.get('/', (req: Request, res: Response) => {
   // Verificar status da conexão com o banco de dados
   const dbConnected = global.mongoose && 
                      global.mongoose.connection && 
@@ -142,13 +136,14 @@ app.get('/', (req, res) => {
       '/api/contributions - Sistema de contribuição comunitária',
       '/api/matchups - Configurações de matchups de civilizações',
       '/api/strategies - Estratégias gerais',
-      '/api/guides - Guias de estratégia'
+      '/api/guides - Guias de estratégia',
+      '/api/ratings - Avaliações de estratégias'
     ]
   });
 });
 
 // Middleware para tratar rotas não encontradas
-app.use((req, res) => {
+app.use((req: Request, res: Response) => {
   res.status(404).json({
     status: 'error',
     message: 'Endpoint não encontrado',
@@ -160,10 +155,21 @@ app.use((req, res) => {
 app.use(dbConnectionMiddleware);
 
 // Middleware para rotas não encontradas
-app.use((req, res) => {
+app.use((req: Request, res: Response) => {
   res.status(404).json({
     status: 'error',
     message: 'Rota não encontrada'
+  });
+});
+
+// Middleware de tratamento de erros
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  console.error(err.stack);
+  
+  res.status(err.status || 500).json({
+    status: 'error',
+    message: err.message || 'Erro interno do servidor',
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
 });
 
