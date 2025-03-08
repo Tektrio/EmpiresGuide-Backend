@@ -14,16 +14,11 @@
     "noUnusedParameters": false,
     "allowJs": true,
     "resolveJsonModule": true,
-    "types": ["node"],
     "moduleResolution": "node",
     "lib": ["es2015", "dom"],
     "baseUrl": ".",
-    "paths": {
-      "*": ["node_modules/*", "src/types/*"]
-    },
-    "ignoreDeprecations": "5.0",
     "noEmitOnError": false
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "src/**/*.test.ts", "src/__tests__/**/*"]
+  "exclude": ["node_modules", "**/*.test.ts", "**/__tests__/**/*"]
 } 
