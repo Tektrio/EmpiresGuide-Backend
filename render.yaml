@@ -7,11 +7,19 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      # As variáveis abaixo devem ser configuradas no dashboard do Render como variáveis secretas
-      # - key: MONGODB_URI
-      #   sync: false
-      # - key: JWT_SECRET
-      #   sync: false
+      - key: PORT
+        sync: false
+      - key: DATABASE
+        sync: false
+      - key: DATABASE_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        sync: false
       - key: USE_COMPLETE_MATCHUPS
-        value: false
-    healthCheckPath: /api/ping 
+        value: true
+    healthCheckPath: /api/ping
+    autoDeploy: true
+    disk:
+      name: uploads
+      mountPath: /uploads
+      sizeGB: 1 

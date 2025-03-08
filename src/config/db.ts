@@ -1,4 +1,8 @@
 import mongoose from 'mongoose';
+import dotenv from 'dotenv';
+
+// Carregar variáveis de ambiente
+dotenv.config();
 
 // Mock das funcionalidades do MongoDB para desenvolvimento sem MongoDB instalado
 const setupMemoryMockDB = () => {
@@ -152,20 +156,34 @@ const setupMemoryMockDB = () => {
 
 const connectDB = async () => {
   try {
-    // Usar variável de ambiente para MongoDB URI
-    const MONGODB_URI = process.env.MONGODB_URI;
+    // Verificar qual variável de ambiente está disponível
+    let connectionString: string;
     
-    if (!MONGODB_URI) {
-      console.warn('⚠️ Variável de ambiente MONGODB_URI não definida!');
-      throw new Error('MONGODB_URI não definida');
+    if (process.env.DATABASE && process.env.DATABASE_PASSWORD) {
+      // Formato usado no repositório Tek Trio 2025
+      connectionString = process.env.DATABASE.replace('<PASSWORD>', process.env.DATABASE_PASSWORD);
+      console.log('✅ Usando configuração oficial do banco de dados MongoDB Atlas');
+    } else if (process.env.MONGODB_URI) {
+      // Formato alternativo direto
+      connectionString = process.env.MONGODB_URI;
+      console.log('✅ Usando configuração de banco de dados do formato URI direto');
+    } else {
+      console.warn('⚠️ Nenhuma variável de ambiente de conexão com banco de dados definida!');
+      throw new Error('Variáveis de ambiente de banco de dados não definidas');
     }
     
-    // Tenta conectar ao MongoDB Atlas diretamente
-    const conn = await mongoose.connect(MONGODB_URI);
+    // Tenta conectar ao MongoDB Atlas
+    const conn = await mongoose.connect(connectionString);
     console.log(`✅ MongoDB Atlas Conectado: ${conn.connection.host}`);
     return conn;
   } catch (error) {
     console.error(`❌ Erro ao conectar ao MongoDB Atlas: ${error instanceof Error ? error.message : String(error)}`);
+    
+    if (process.env.NODE_ENV === 'production') {
+      console.error('❌ Falha crítica em ambiente de produção. O servidor será encerrado.');
+      process.exit(1);
+    }
+    
     console.log('⚠️ Usando banco de dados em memória para desenvolvimento...');
     
     // Configurar banco de dados em memória como fallback
