@@ -9,6 +9,16 @@ declare module 'express' {
   }
 }
 
+// Função auxiliar para obter a chave secreta JWT
+const getJwtSecret = (): string => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    console.warn('⚠️ JWT_SECRET não definido! Usando fallback inseguro apenas para desenvolvimento.');
+    return 'desenvolvimento_inseguro_nao_use_em_producao';
+  }
+  return secret;
+};
+
 // Middleware para proteger rotas
 export const protect = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   let token;
@@ -19,7 +29,7 @@ export const protect = async (req: Request, res: Response, next: NextFunction): 
       token = req.headers.authorization.split(' ')[1];
 
       // Verificar token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallbacksecret') as { id: string };
+      const decoded = jwt.verify(token, getJwtSecret()) as { id: string };
 
       // Buscar o usuário pelo ID
       const user = await User.findById(decoded.id);
@@ -63,7 +73,7 @@ export const ownerOnly = (req: Request, res: Response, next: NextFunction): void
 
 // Gerar token JWT
 export const generateToken = (id: string): string => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'fallbacksecret', {
+  return jwt.sign({ id }, getJwtSecret(), {
     expiresIn: '30d',
   });
 }; 

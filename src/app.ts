@@ -8,6 +8,7 @@ import contributionRoutes from './routes/contributionRoutes';
 import matchupRoutes from './routes/matchupRoutes';
 import strategyRoutes from './routes/strategyRoutes';
 import strategyGuideRoutes from './routes/strategyGuideRoutes';
+import healthRoutes from './routes/health';
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -33,7 +34,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Rota de ping para verificação de conectividade
+// Rotas de health check
+app.use('/health', healthRoutes);
 app.get('/api/ping', (req, res) => {
   res.status(200).json({ 
     status: 'success',

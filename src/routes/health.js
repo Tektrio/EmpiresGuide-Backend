@@ -5,58 +5,64 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
+const os = require('os');
 
-// Rota básica de health check
-router.get('/', (req, res) => {
-  res.status(200).json({
-    status: 'OK',
-    message: 'Servidor funcionando corretamente',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV
-  });
-});
-
-// Rota detalhada de health check com status do banco de dados
-router.get('/detailed', async (req, res) => {
+// Health check detalhado
+router.get('/', async (req, res) => {
   try {
-    // Verificar conexão com o banco de dados
-    const dbStatus = mongoose.connection.readyState === 1 
-      ? 'connected' 
-      : 'disconnected';
+    // Verificar status da conexão MongoDB
+    const dbStatus = mongoose.connection.readyState === 1 ? 'conectado' : 'desconectado';
     
-    // Verificar uso de memória
-    const memoryUsage = process.memoryUsage();
-    
-    // Verificar tempo de atividade
-    const uptime = process.uptime();
-    
-    res.status(200).json({
-      status: 'OK',
-      message: 'Health check detalhado',
-      server: {
-        timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV,
-        uptime: uptime.toFixed(2) + 's',
-        nodeVersion: process.version
+    // Informações básicas do sistema
+    const systemInfo = {
+      uptime: process.uptime(),
+      timestamp: Date.now(),
+      hostname: os.hostname(),
+      platform: process.platform,
+      memory: {
+        total: os.totalmem(),
+        free: os.freemem(),
+        usage: process.memoryUsage()
       },
+      cpu: os.cpus(),
+      load: os.loadavg()
+    };
+
+    // Contagem de rotas registradas
+    const routeCount = router.stack ? router.stack.length : 'não disponível';
+
+    // Enviar resposta
+    res.status(200).json({
+      status: 'ok',
+      message: 'Serviço funcionando normalmente',
+      timestamp: new Date().toISOString(),
+      version: process.env.npm_package_version || 'desconhecida',
       database: {
         status: dbStatus,
-        name: mongoose.connection.name || 'N/A'
+        name: mongoose.connection.name || 'não disponível'
       },
-      memory: {
-        rss: Math.round(memoryUsage.rss / 1024 / 1024) + 'MB',
-        heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024) + 'MB',
-        heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024) + 'MB'
+      environment: process.env.NODE_ENV || 'development',
+      system: systemInfo,
+      routes: {
+        count: routeCount
       }
     });
   } catch (error) {
-    console.error('Erro no health check detalhado:', error);
     res.status(500).json({
-      status: 'ERROR',
-      message: 'Erro ao realizar health check detalhado',
-      error: process.env.NODE_ENV === 'production' ? {} : error
+      status: 'error',
+      message: 'Erro ao verificar status do serviço',
+      error: error.message
     });
   }
+});
+
+// Rota simplificada - usado pelo Render para health check
+router.get('/ping', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    message: 'pong',
+    timestamp: new Date().toISOString()
+  });
 });
 
 module.exports = router; 

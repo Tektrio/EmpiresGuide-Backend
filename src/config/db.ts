@@ -152,8 +152,13 @@ const setupMemoryMockDB = () => {
 
 const connectDB = async () => {
   try {
-    // Configurando URI do MongoDB Atlas com as credenciais corretas
-    const MONGODB_URI = 'mongodb+srv://tektrio2023:EFsXKM83w4zMmkTJ@age4.jx5tt.mongodb.net/?retryWrites=true&w=majority&appName=age4';
+    // Usar variável de ambiente para MongoDB URI
+    const MONGODB_URI = process.env.MONGODB_URI;
+    
+    if (!MONGODB_URI) {
+      console.warn('⚠️ Variável de ambiente MONGODB_URI não definida!');
+      throw new Error('MONGODB_URI não definida');
+    }
     
     // Tenta conectar ao MongoDB Atlas diretamente
     const conn = await mongoose.connect(MONGODB_URI);

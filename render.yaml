@@ -7,12 +7,11 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 3001
-      # As variáveis abaixo devem ser configuradas no dashboard do Render
+      # As variáveis abaixo devem ser configuradas no dashboard do Render como variáveis secretas
       # - key: MONGODB_URI
-      #   value: mongodb+srv://seu-usuario:senha@cluster.mongodb.net/database
+      #   sync: false
       # - key: JWT_SECRET
-      #   value: sua-chave-secreta
+      #   sync: false
       - key: USE_COMPLETE_MATCHUPS
-        value: false 
+        value: false
+    healthCheckPath: /api/ping 
