@@ -14,13 +14,14 @@
     "noUnusedParameters": false,
     "allowJs": true,
     "resolveJsonModule": true,
-    "types": ["node"],
+    "types": ["node", "express"],
     "moduleResolution": "node",
     "lib": ["es2015", "dom"],
     "baseUrl": ".",
     "paths": {
-      "*": ["node_modules/*"]
-    }
+      "*": ["node_modules/*", "src/types/*"]
+    },
+    "ignoreDeprecations": "5.0"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "src/**/*.test.ts", "src/__tests__/**/*"]
