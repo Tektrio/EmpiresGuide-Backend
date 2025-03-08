@@ -26,8 +26,18 @@ function isPackageInstalled(packageName) {
   }
 }
 
+// Express é uma dependência crítica, vamos forçar a instalação
+console.log('Garantindo que @types/express esteja disponível...')
+try {
+  execSync('npm install --no-save @types/express', { stdio: 'inherit' });
+  console.log('✅ @types/express verificado e instalado com sucesso');
+} catch (error) {
+  console.error(`❌ Erro ao instalar @types/express: ${error.message}`);
+}
+
 // Instalar tipos
 for (const packageName of typePackages) {
+  if (packageName === '@types/express') continue; // Já tratamos acima
   const isInstalled = isPackageInstalled(packageName);
   
   if (isInstalled) {

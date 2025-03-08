@@ -51,6 +51,17 @@ console.log("🚀 Iniciando build de produção...");
 console.log("📦 Verificando @types/node...");
 const nodeTypesInstalled = runCommand('npm list @types/node || npm install --no-save @types/node');
 
+// Garantir que @types/express está instalado
+console.log("📦 Verificando @types/express...");
+runCommand('npm list @types/express || npm install --no-save @types/express');
+
+// Criar links simbólicos dos tipos na pasta node_modules para garantir que o tsc os encontre
+console.log("🔗 Criando links para tipos...");
+ensureDirectoryExists('./node_modules/@types/express');
+if (fs.existsSync('./node_modules/@types/express')) {
+  console.log("✅ Diretório do @types/express encontrado");
+}
+
 // Garantir que o diretório dist existe
 console.log("📁 Criando diretório dist...");
 ensureDirectoryExists('./dist');

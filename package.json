@@ -5,9 +5,9 @@
   "scripts": {
     "start": "NODE_ENV=production node dist/index.js",
     "start:dev": "NODE_ENV=development nodemon --exec 'TS_NODE_TRANSPILE_ONLY=true ts-node' src/index.ts",
-    "build": "node install-types.js && tsc --skipLibCheck",
-    "build:prod": "node install-types.js && tsc --skipLibCheck && node build.js",
-    "build:emergency": "node install-types.js && node build.js",
+    "build": "node install-types.js && node fix-express-types.js && tsc --skipLibCheck",
+    "build:prod": "node install-types.js && node fix-express-types.js && tsc --skipLibCheck && node build.js",
+    "build:emergency": "node install-types.js && node fix-express-types.js && node build.js",
     "test": "jest",
     "test:watch": "cross-env NODE_ENV=test jest --watch",
     "test:coverage": "cross-env NODE_ENV=test jest --coverage",
@@ -16,9 +16,10 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "directories": "node scripts/create-directories.js",
     "prepare": "npm run directories",
-    "postinstall": "chmod +x install-types.js && chmod +x build.js && npm run build:prod || npm run build:emergency",
+    "postinstall": "chmod +x install-types.js && chmod +x fix-express-types.js && chmod +x build.js && npm run build:prod || npm run build:emergency",
     "health": "curl -s http://localhost:3001/health",
-    "install-types": "node install-types.js"
+    "install-types": "node install-types.js",
+    "fix-express": "node fix-express-types.js"
   },
   "engines": {
     "node": ">=16.0.0"
