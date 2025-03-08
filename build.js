@@ -108,10 +108,14 @@ function processTypeScriptContent(content) {
   content = content.replace(/interface\s+[^{]*\{[^}]*\}\s*;?/g, '');
   content = content.replace(/type\s+[^=]*=[^;]*;/g, '');
 
-  // Remover anotações de tipo
-  content = content.replace(/:\s*[A-Za-z0-9_<>[\],\s|&]+(?=(\s*=|\s*\)|\s*,|\s*;|\s*\{))/g, '');
-  content = content.replace(/:\s*[A-Za-z0-9_]+\[\]/g, '');  // Remove tipos de array como: x: string[]
-  content = content.replace(/<[^>]+>/g, '');  // Remove generic types
+  // Remover anotações de tipo em declarações de variáveis
+  content = content.replace(/(const|let|var)\s+(\w+)\s*:\s*[^=;]+(=|;)/g, '$1 $2 $3');
+
+  // Remover anotações de tipo em parâmetros de funções
+  content = content.replace(/(\(.*?\))\s*:\s*[^\{]+\{/g, '$1 {');
+
+  // Remover anotações de tipo em retornos de funções
+  content = content.replace(/\)\s*:\s*[^{]+\{/g, ') {');
 
   return content;
 }
