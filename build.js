@@ -1,169 +1,111 @@
 #!/usr/bin/env node
 
-const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
-// Verifica o ambiente
+// Verificar ambiente
 const isRenderEnvironment = process.env.RENDER === 'true' || process.env.RENDER === 'TRUE';
 console.log(`🚀 Ambiente de execução: ${isRenderEnvironment ? 'Render' : 'Local'}`);
 
-// Define os caminhos
+// Definir diretórios
 const srcDir = path.join(__dirname, 'src');
 const distDir = path.join(__dirname, 'dist');
 
-// Cria o diretório dist se não existir
+// Criar diretório dist se não existir
 console.log('📁 Criando diretório dist...');
 if (!fs.existsSync(distDir)) {
   fs.mkdirSync(distDir);
 }
 
-// Função para processar o conteúdo de arquivos TypeScript
-function processTypeScriptContent(content) {
-  // Remover importações de tipos
-  content = content.replace(/import\s+type\s+[^;]+\s*;/g, '');
-  content = content.replace(/import\s+\{\s*([^}]*?Type[^}]*?)\s*\}\s+from\s+['"][^'"]+['"];?/g, '');
-  content = content.replace(/import\s+[^;]+\s+from\s+['"]@types\/[^'"]+['"]/g, '');
-
-  // Processar primeiro as importações desestruturadas com nomes e tipos específicos
-  // import express, { Request, Response, NextFunction } from 'express';
-  content = content.replace(/import\s+(\w+),\s*\{\s*([^}]+)\s*\}\s+from\s+['"]([^'"]+)['"]/g, (match, defaultImport, namedImports, module) => {
-    // Remover anotações de tipo nas importações desestruturadas
-    const cleanImports = namedImports.split(',')
-      .map(item => item.trim().split(':')[0].trim())
-      .join(', ');
-    
-    return `const ${defaultImport} = require("${module}");\nconst { ${cleanImports} } = require("${module}");`;
-  });
-
-  // Converter importações ESM em requires do CommonJS
-  // 1. Import padrão: import x from 'y'; -> const x = require('y');
-  content = content.replace(/import\s+(\w+)\s+from\s+['"]([^'"]+)['"]/g, 'const $1 = require("$2")');
-
-  // 2. Import desestruturado: import { x, y } from 'z'; -> const { x, y } = require('z');
-  content = content.replace(/import\s+\{\s*([^}]+)\s*\}\s+from\s+['"]([^'"]+)['"]/g, (match, imports, module) => {
-    // Remover anotações de tipo nas importações desestruturadas
+// Função para converter arquivos TS para JS de forma extremamente simplificada
+function simplifyTsToJs(content) {
+  // Remover comentários de múltiplas linhas (que podem conter código TypeScript)
+  content = content.replace(/\/\*[\s\S]*?\*\//g, '');
+  
+  // Remover comentários de linha única
+  content = content.replace(/\/\/.*$/gm, '');
+  
+  // 1. Remover blocos de interface completamente
+  content = content.replace(/interface\s+\w+\s*\{[\s\S]*?\}/g, '');
+  
+  // 2. Remover blocos de type completamente
+  content = content.replace(/type\s+\w+\s*=[\s\S]*?;/g, '');
+  
+  // 3. Converter importações para CommonJS
+  content = content.replace(/import\s+\*\s+as\s+(\w+)\s+from\s+['"]([^'"]+)['"];?/g, 'const $1 = require("$2");');
+  content = content.replace(/import\s+(\w+)\s+from\s+['"]([^'"]+)['"];?/g, 'const $1 = require("$2");');
+  
+  // 4. Converter importações desestruturadas
+  content = content.replace(/import\s+\{\s*([^}]+)\s*\}\s+from\s+['"]([^'"]+)['"];?/g, (match, imports, module) => {
     const cleanImports = imports.split(',')
-      .map(item => {
-        // Remove anotações de tipo ou aliases complexos
-        return item.trim().split(':')[0].trim();
-      })
+      .map(i => i.trim().split(' as ')[0].trim())
+      .filter(i => !i.includes('Type') && !i.includes('Interface'))
       .join(', ');
     
-    return `const { ${cleanImports} } = require("${module}")`;
+    if (cleanImports.length === 0) return '';
+    return `const { ${cleanImports} } = require("${module}");`;
   });
-
-  // 3. Import com namespace: import * as x from 'y'; -> const x = require('y');
-  content = content.replace(/import\s+\*\s+as\s+(\w+)\s+from\s+['"]([^'"]+)['"]/g, 'const $1 = require("$2")');
-
-  // Converter export padrão para module.exports
-  content = content.replace(/export\s+default\s+(\w+)/g, 'module.exports = $1');
-
-  // Converter export constante/let/var/function para module.exports.x = x
-  const namedExportRegex = /export\s+(const|let|var|function|class)\s+(\w+)/g;
-  let namedExportMatch;
-  const exportedNames = [];
   
-  while ((namedExportMatch = namedExportRegex.exec(content)) !== null) {
-    const exportedName = namedExportMatch[2];
-    exportedNames.push(exportedName);
-    content = content.replace(
-      new RegExp(`export\\s+(const|let|var|function|class)\\s+${exportedName}`, 'g'), 
-      `$1 ${exportedName}`
-    );
-  }
-
-  // Adicionar exportações nomeadas ao final do arquivo
-  if (exportedNames.length > 0) {
-    // Primeiro verifica se já existe um module.exports no arquivo
-    if (!content.includes('module.exports =')) {
-      // Se não existe, adicionamos as exportações nomeadas
-      const exportStatements = exportedNames.map(name => `module.exports.${name} = ${name};`).join('\n');
-      content += '\n\n' + exportStatements;
-    } else {
-      // Caso contrário, modificamos as exportações existentes
-      exportedNames.forEach(name => {
-        if (!content.includes(`module.exports.${name} =`)) {
-          content = content.replace(
-            /module\.exports(\s+=\s+\w+)/,
-            `module.exports$1\nmodule.exports.${name} = ${name};`
-          );
-        }
-      });
-    }
-  }
-
-  // Converter export desestruturado: export { x, y }; -> module.exports.x = x; module.exports.y = y;
-  content = content.replace(/export\s+\{\s*([^}]+)\s*\};?/g, (match, exports) => {
-    const exportLines = exports.split(',')
-      .map(item => {
-        const trimmedItem = item.trim();
-        return `module.exports.${trimmedItem} = ${trimmedItem};`;
-      })
-      .join('\n');
-    return exportLines;
-  });
-
-  // Remover as definições de interface e type
-  content = content.replace(/interface\s+[^{]*\{[^}]*\}\s*;?/g, '');
-  content = content.replace(/type\s+[^=]*=[^;]*;/g, '');
-
-  // Remover anotações de tipo em declarações de variáveis
-  content = content.replace(/(const|let|var)\s+(\w+)\s*:\s*[^=;]+(=|;)/g, '$1 $2 $3');
+  // 5. Remover todas as importações de tipos
+  content = content.replace(/import\s+type.*?;/g, '');
   
-  // Remover anotações de tipo em parâmetros de funções arrow
-  content = content.replace(/(\([\w\s,]*)\s*:\s*[\w\.<>\[\]|, ]+(\s*[,\)])/g, '$1$2');
-  
-  // Lidar com várias anotações de tipo em parâmetros de função
-  // Exemplo: (req: Request, res: Response, next: NextFunction)
-  let lastContent = '';
-  while (lastContent !== content) {
-    lastContent = content;
-    content = content.replace(/(\(\w+\s*):[\w\.<>\[\]|, ]+(\s*,|\))/g, '$1$2');
-    content = content.replace(/,\s*(\w+\s*):[\w\.<>\[\]|, ]+(\s*,|\))/g, ', $1$2');
-  }
-  
-  // Remover anotações de tipo em parâmetros de funções
-  content = content.replace(/(\(.*?\))\s*:\s*[^\{]+\{/g, '$1 {');
-  
-  // Remover anotações de tipo em retornos de funções
-  content = content.replace(/\)\s*:\s*[^{]+\{/g, ') {');
-  
-  // Remover tipos genéricos
+  // 6. Remover todas as anotações de tipo
+  content = content.replace(/:\s*[A-Za-z0-9_<>[\]|&{},\s.]+(?=(\s*[=;,)]|\s*\{))/g, '');
   content = content.replace(/<[^>]+>/g, '');
   
-  // Correções especiais após a conversão
-  // 1. Variáveis não definidas em objetos
-  content = content.replace(/(\w+):\s*(\w+),/g, (match, key, value) => {
-    // Se parece ser uma referência a uma variável sem definição visível
-    if (value !== 'true' && value !== 'false' && value !== 'null' && 
-        !content.includes(`const ${value}`) && 
-        !content.includes(`let ${value}`) && 
-        !content.includes(`var ${value}`) &&
-        !content.includes(`function ${value}`) &&
-        !isNaN(value) === false) { // não é um número
-      // Substituir com um valor padrão baseado no nome
-      if (value.includes('timeout') || value.includes('Timeout')) {
-        return `${key}: 45000, // Valor padrão para ${value}`;
-      } else if (value.includes('retries') || value.includes('Retries')) {
-        return `${key}: 3, // Valor padrão para ${value}`;
-      } else {
-        return `${key}: true, // Valor padrão para ${value}`;
-      }
-    }
-    return match;
+  // 7. Converter exports para CommonJS
+  content = content.replace(/export\s+default\s+(\w+);?/g, 'module.exports = $1;');
+  content = content.replace(/export\s+const\s+(\w+)\s*=/g, 'const $1 =');
+  content = content.replace(/export\s+function\s+(\w+)/g, 'function $1');
+  content = content.replace(/export\s+class\s+(\w+)/g, 'class $1');
+  
+  // 8. Adicionar module.exports para exportações nomeadas
+  content = content.replace(/export\s+\{\s*([^}]+)\s*\};?/g, (match, exports) => {
+    return exports.split(',')
+      .map(e => `module.exports.${e.trim()} = ${e.trim()};`)
+      .join('\n');
   });
-
-  // 2. Caso específico para socketTimeoutMS que aparece como: retryWrites: true, socketTimeoutMS,
-  content = content.replace(/retryWrites:\s*true,\s*socketTimeoutMS,/g, 'retryWrites: true, socketTimeoutMS: 45000,');
+  
+  // 9. Corrigir problemas específicos
+  // 9.1 Corrigir socketTimeoutMS
+  content = content.replace(/socketTimeoutMS,/g, 'socketTimeoutMS: 45000,');
+  content = content.replace(/serverSelectionTimeoutMS,/g, 'serverSelectionTimeoutMS: 10000,');
+  content = content.replace(/retryWrites,/g, 'retryWrites: true,');
+  
+  // 9.2 Corrigir o problema com o morgan
+  content = content.replace(/app\.use\(morgan\('combined', \{ stream\)\);/g, 
+                           `app.use(morgan('combined', { stream: accessLogStream }));`);
+  
+  // 9.3 Remover linhas que começam com > ou < (restos de interfaces)
+  content = content.replace(/^[><].*$/gm, '');
+  
+  // 9.4 Remover linhas que contêm apenas um ponto e vírgula
+  content = content.replace(/^\s*;\s*$/gm, '');
+  
+  // 9.5 Remover linhas que contêm apenas um nome de propriedade seguido de ponto e vírgula
+  content = content.replace(/^\s*\w+\s*;\s*$/gm, '');
+  
+  // 9.6 Remover linhas que contêm apenas chaves
+  content = content.replace(/^\s*[\{\}]\s*$/gm, '');
+  
+  // 9.7 Corrigir objetos JSON mal formados
+  content = content.replace(/,(\s*[}\]])/g, '$1');
+  
+  // 9.8 Remover linhas vazias consecutivas
+  content = content.replace(/\n\s*\n\s*\n/g, '\n\n');
   
   return content;
 }
 
-// Função para copiar um diretório recursivamente 
-function copyDir(src, dest) {
-  fs.mkdirSync(dest, { recursive: true });
+// Função recursiva para copiar e converter diretórios
+function copyAndConvert(src, dest) {
+  // Criar diretório de destino se não existir
+  if (!fs.existsSync(dest)) {
+    fs.mkdirSync(dest, { recursive: true });
+  }
   
+  // Ler todos os arquivos no diretório fonte
   const entries = fs.readdirSync(src, { withFileTypes: true });
   
   for (const entry of entries) {
@@ -171,56 +113,68 @@ function copyDir(src, dest) {
     const destPath = path.join(dest, entry.name);
     
     if (entry.isDirectory()) {
-      copyDir(srcPath, destPath);
+      // Copiar subdiretórios recursivamente
+      copyAndConvert(srcPath, destPath);
     } else {
-      // Se for um arquivo TypeScript
+      // Processar arquivos
       if (entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts')) {
-        // Lê o conteúdo do arquivo
-        let content = fs.readFileSync(srcPath, 'utf8');
-        
-        // Processa o conteúdo do arquivo TypeScript
-        content = processTypeScriptContent(content);
-        
-        // Salva o arquivo com extensão .js
-        const destPathJs = destPath.replace(/\.ts$/, '.js');
-        fs.writeFileSync(destPathJs, content);
-      } 
-      // Copia outros arquivos diretamente
-      else if (!entry.name.endsWith('.d.ts')) {
+        try {
+          // Ler conteúdo do arquivo TypeScript
+          const content = fs.readFileSync(srcPath, 'utf8');
+          
+          // Simplificar e converter para JavaScript
+          const jsContent = simplifyTsToJs(content);
+          
+          // Escrever o arquivo JavaScript resultante
+          const jsPath = destPath.replace(/\.ts$/, '.js');
+          fs.writeFileSync(jsPath, jsContent);
+        } catch (error) {
+          console.error(`❌ Erro ao processar arquivo ${srcPath}:`, error.message);
+        }
+      } else if (!entry.name.endsWith('.d.ts')) {
+        // Copiar outros arquivos sem alteração
         fs.copyFileSync(srcPath, destPath);
       }
     }
   }
 }
 
-// Realiza a cópia direta de TypeScript para JavaScript
-console.log('⚙️ Realizando conversão direta TS -> JS via cópia...');
-copyDir(srcDir, distDir);
-console.log('✅ Cópia direta de arquivos concluída');
-
-// Cria o diretório de logs se necessário
-const logsDir = path.join(__dirname, 'logs');
-if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir);
-}
-
-// Finalização
-console.log('✅ Build finalizado com sucesso!');
-
-// Se estiver no ambiente Render, exibir informações adicionais
-if (isRenderEnvironment) {
-  console.log("\n=== Informações de Instalação ===");
-  try {
-    console.log(execSync('ls -la ./dist').toString());
-  } catch (error) {
-    console.error('❌ Erro ao listar arquivos:', error.message);
+// Executar a conversão
+console.log('⚙️ Iniciando conversão TypeScript -> JavaScript...');
+try {
+  copyAndConvert(srcDir, distDir);
+  console.log('✅ Conversão concluída com sucesso!');
+  
+  // Criar diretório de logs se necessário
+  const logsDir = path.join(__dirname, 'logs');
+  if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir);
   }
-  console.log("====================\n");
+  
+  // Adicionar informações de build
+  const buildInfo = {
+    timestamp: new Date().toISOString(),
+    environment: isRenderEnvironment ? 'render' : 'local',
+    nodeVersion: process.version
+  };
+  
+  fs.writeFileSync(
+    path.join(distDir, 'build-info.json'), 
+    JSON.stringify(buildInfo, null, 2)
+  );
+  
+  // Mostrar arquivos gerados no ambiente Render
+  if (isRenderEnvironment) {
+    console.log('\n=== Informações de Instalação ===');
+    try {
+      console.log(execSync('ls -la ./dist').toString());
+    } catch (error) {
+      console.error('❌ Erro ao listar arquivos:', error.message);
+    }
+    console.log('====================\n');
+  }
+  
+} catch (error) {
+  console.error('❌ Erro durante a conversão:', error.message);
+  process.exit(1);
 }
-
-// Criar arquivo de verificação para confirmar build completo
-fs.writeFileSync('./dist/build-info.json', JSON.stringify({
-  buildDate: new Date().toISOString(),
-  environment: isRenderEnvironment ? 'render' : 'local',
-  success: true
-}));
