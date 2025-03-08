@@ -13,7 +13,10 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "allowJs": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "types": ["node"],
+    "moduleResolution": "node",
+    "lib": ["es2015", "dom"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "src/**/*.test.ts", "src/__tests__/**/*"]

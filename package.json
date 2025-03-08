@@ -5,9 +5,9 @@
   "scripts": {
     "start": "NODE_ENV=production node dist/index.js",
     "start:dev": "NODE_ENV=development nodemon --exec 'TS_NODE_TRANSPILE_ONLY=true ts-node' src/index.ts",
-    "build": "tsc --skipLibCheck || echo 'Build falhou mas continuando...'",
-    "build:prod": "node build.js",
-    "build:emergency": "npx ncc build src/index.ts -o dist",
+    "build": "tsc --skipLibCheck",
+    "build:prod": "tsc --skipLibCheck && node build.js",
+    "build:emergency": "npx ncc build src/index.ts -o dist --skipLibCheck",
     "test": "jest",
     "test:watch": "cross-env NODE_ENV=test jest --watch",
     "test:coverage": "cross-env NODE_ENV=test jest --coverage",

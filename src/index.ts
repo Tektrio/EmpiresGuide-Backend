@@ -13,11 +13,8 @@ const dbConfigValid = checkDatabaseConfig();
 // Definir a porta do servidor
 const PORT = process.env.PORT || 3000;
 
-// Tornar a API disponível para todos caso expressamente configurada para isso
-let host = 'localhost';
-if (process.env.BIND_ALL_INTERFACES === 'true') {
-  host = '0.0.0.0';
-}
+// Definir o host - No Render.com, precisamos escutar em 0.0.0.0
+let host = '0.0.0.0'; // Sempre escutar em todas as interfaces no ambiente de produção
 
 // Iniciar o servidor após conectar ao banco de dados
 const startServer = async () => {
