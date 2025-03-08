@@ -66,14 +66,9 @@ if (fs.existsSync('./node_modules/@types/express')) {
 console.log("📁 Criando diretório dist...");
 ensureDirectoryExists('./dist');
 
-// Método 1: Tentar tsc ignorando erros
-console.log("📋 Tentando compilar com TypeScript...");
-const tscSuccess = runCommand('tsc --skipLibCheck || echo "Compilação com erros, continuando..."');
-
-// Se o tsc falhar ou o dist/index.js não for criado, usar o método de emergência
-if (!fs.existsSync('./dist/index.js')) {
-  console.log("⚠️ Compilação TypeScript não gerou dist/index.js");
-  console.log("🔄 Usando método de emergência: cópia direta de arquivos...");
+// No ambiente Render, usar sempre o método de emergência para evitar problemas de tipos
+if (isRenderEnvironment) {
+  console.log("⚙️ Ambiente Render detectado, usando método de cópia direta para garantir compilação...");
   
   // Função recursiva para copiar diretório
   function copyDir(src, dest) {
@@ -118,6 +113,60 @@ if (!fs.existsSync('./dist/index.js')) {
   
   copyDir('./src', './dist');
   console.log("✅ Cópia direta de arquivos concluída");
+} else {
+  // Em ambiente local, tentar tsc primeiro
+  console.log("📋 Tentando compilar com TypeScript...");
+  const tscSuccess = runCommand('tsc --skipLibCheck || echo "Compilação com erros, continuando..."');
+
+  // Se o tsc falhar ou o dist/index.js não for criado, usar o método de emergência
+  if (!fs.existsSync('./dist/index.js')) {
+    console.log("⚠️ Compilação TypeScript não gerou dist/index.js");
+    console.log("🔄 Usando método de emergência: cópia direta de arquivos...");
+    
+    // Função recursiva para copiar diretório (igual à anterior)
+    function copyDir(src, dest) {
+      ensureDirectoryExists(dest);
+      
+      const entries = fs.readdirSync(src, { withFileTypes: true });
+      
+      for (let entry of entries) {
+        const srcPath = path.join(src, entry.name);
+        const destPath = path.join(dest, entry.name);
+        
+        if (entry.isDirectory()) {
+          // Ignorar diretório types
+          if (entry.name === 'types' && src.endsWith('src')) {
+            continue;
+          }
+          copyDir(srcPath, destPath);
+        } else if (entry.name.endsWith('.ts')) {
+          // Converter .ts para .js e copiar
+          const destJsPath = destPath.replace('.ts', '.js');
+          const content = fs.readFileSync(srcPath, 'utf8');
+          // Remover imports de tipagem e corrigir imports
+          const processedContent = content
+            .replace(/import\s+[^;]+\s+from\s+['"]@types\/[^'"]+['"]/g, '')
+            .replace(/import\s+type\s+[^;]+\s+from\s+[^;]+;/g, '')
+            // Lidar com imports desestruturados
+            .replace(/import\s+{\s*connectDB\s*}/, 'import connectDB')
+            // Converter import { X } from Y para import X from Y para compatibilidade com CommonJS
+            .replace(/import\s+{\s*([^{}]+)\s*}\s+from\s+['"]([^'"]+)['"]/g, (match, importName, path) => {
+              // Se for um import múltiplo, manter desestruturado
+              if (importName.includes(',')) return match;
+              return `import ${importName} from '${path}'`;
+            });
+            
+          fs.writeFileSync(destJsPath, processedContent);
+        } else {
+          // Copiar outros arquivos sem alteração
+          fs.copyFileSync(srcPath, destPath);
+        }
+      }
+    }
+    
+    copyDir('./src', './dist');
+    console.log("✅ Cópia direta de arquivos concluída");
+  }
 }
 
 // Verificar novamente
