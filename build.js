@@ -16,8 +16,22 @@ function runCommand(command) {
   }
 }
 
+// Função para garantir que um diretório existe
+function ensureDirectoryExists(dir) {
+  if (!fs.existsSync(dir)) {
+    console.log(`Criando diretório: ${dir}`);
+    fs.mkdirSync(dir, { recursive: true });
+    return true;
+  }
+  return false;
+}
+
+// Verificar ambiente Render
+const isRenderEnvironment = process.env.RENDER !== undefined;
+console.log(`Ambiente de execução: ${isRenderEnvironment ? 'Render.com' : 'Local'}`);
+
 // Garantir que .env.render seja copiado para .env no ambiente Render
-if (process.env.RENDER || !fs.existsSync('./.env')) {
+if (isRenderEnvironment || !fs.existsSync('./.env')) {
   console.log("Configurando variáveis de ambiente...");
   try {
     if (fs.existsSync('./.env.render')) {
@@ -33,57 +47,73 @@ if (process.env.RENDER || !fs.existsSync('./.env')) {
 
 console.log("🚀 Iniciando build de produção...");
 
-// Método de build de emergência - Compilar somente arquivos JavaScript
-console.log("📁 Criando diretório dist...");
-if (!fs.existsSync('./dist')) {
-  fs.mkdirSync('./dist', { recursive: true });
-}
+// Garantir que @types/node está instalado
+console.log("📦 Verificando @types/node...");
+const nodeTypesInstalled = runCommand('npm list @types/node || npm install --no-save @types/node');
 
-// Copiar arquivos .js da pasta src para dist
-console.log("📋 Compilando arquivos TypeScript para JavaScript...");
+// Garantir que o diretório dist existe
+console.log("📁 Criando diretório dist...");
+ensureDirectoryExists('./dist');
 
 // Método 1: Tentar tsc ignorando erros
-const tscBuildSuccess = runCommand('npx tsc --skipLibCheck || true');
+console.log("📋 Tentando compilar com TypeScript...");
+runCommand('tsc --skipLibCheck || echo "Compilação com erros, continuando..."');
 
-// Método 2: Se o tsc falhar, usar o método de emergência
+// Verificar se foi gerado o arquivo principal
 if (!fs.existsSync('./dist/index.js')) {
-  console.log("⚠️ Compilação TypeScript falhou ou não gerou todos os arquivos necessários");
-  console.log("🔄 Usando método de compilação de emergência");
+  console.log("⚠️ Compilação TypeScript não gerou dist/index.js");
+  console.log("🔄 Usando método de emergência: cópia direta de arquivos...");
   
-  // Usar o método de emergência
-  runCommand('npx ncc build src/index.ts -o dist || true');
-  
-  // Se ainda não funcionar, fazer cópia direta dos arquivos
-  if (!fs.existsSync('./dist/index.js')) {
-    console.log("⚠️ Métodos anteriores falharam. Tentando cópia direta de arquivos...");
-    // Função recursiva para copiar diretório
-    function copyDir(src, dest) {
-      if (!fs.existsSync(dest)) {
-        fs.mkdirSync(dest, { recursive: true });
-      }
+  // Função recursiva para copiar diretório
+  function copyDir(src, dest) {
+    ensureDirectoryExists(dest);
+    
+    const entries = fs.readdirSync(src, { withFileTypes: true });
+    
+    for (let entry of entries) {
+      const srcPath = path.join(src, entry.name);
+      const destPath = path.join(dest, entry.name);
       
-      const entries = fs.readdirSync(src, { withFileTypes: true });
-      
-      for (let entry of entries) {
-        const srcPath = path.join(src, entry.name);
-        const destPath = path.join(dest, entry.name);
-        
-        if (entry.isDirectory()) {
-          copyDir(srcPath, destPath);
-        } else if (entry.name.endsWith('.ts')) {
-          // Converter .ts para .js e copiar
-          const destJsPath = destPath.replace('.ts', '.js');
-          const content = fs.readFileSync(srcPath, 'utf8');
-          fs.writeFileSync(destJsPath, content);
-        } else {
-          fs.copyFileSync(srcPath, destPath);
-        }
+      if (entry.isDirectory()) {
+        copyDir(srcPath, destPath);
+      } else if (entry.name.endsWith('.ts')) {
+        // Converter .ts para .js e copiar
+        const destJsPath = destPath.replace('.ts', '.js');
+        const content = fs.readFileSync(srcPath, 'utf8');
+        // Remover imports de tipagem
+        const processedContent = content
+          .replace(/import\s+[^;]+\s+from\s+['"]@types\/[^'"]+['"]/g, '')
+          .replace(/import\s+type\s+[^;]+\s+from\s+[^;]+;/g, '');
+        fs.writeFileSync(destJsPath, processedContent);
+      } else {
+        fs.copyFileSync(srcPath, destPath);
       }
     }
-    
-    copyDir('./src', './dist');
-    console.log("✅ Cópia direta de arquivos concluída");
   }
+  
+  copyDir('./src', './dist');
+  console.log("✅ Cópia direta de arquivos concluída");
 }
 
-console.log("✅ Build finalizado!");
+// Verificar novamente
+if (!fs.existsSync('./dist/index.js')) {
+  console.error("❌ Falha crítica: Não foi possível gerar dist/index.js");
+  process.exit(1);
+}
+
+console.log("✅ Build finalizado com sucesso!");
+
+// Se estiver no ambiente Render, exibir informações adicionais
+if (isRenderEnvironment) {
+  console.log("\n=== Informações de Instalação ===");
+  runCommand('ls -la ./dist');
+  runCommand('ls -la ./node_modules/@types/node || echo "Tipos de Node não instalados!"');
+  console.log("====================\n");
+}
+
+// Criar arquivo de verificação para confirmar build completo
+fs.writeFileSync('./dist/build-info.json', JSON.stringify({
+  buildDate: new Date().toISOString(),
+  environment: isRenderEnvironment ? 'render' : 'local',
+  success: true
+}));

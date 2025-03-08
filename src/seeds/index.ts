@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { config } from 'dotenv';
-import connectDB from '../config/db';
+import { connectDB } from '../config/db';
 import { seedEnglish } from './englishSeed';
 import { seedChinese } from './chineseSeed';
 import { seedMongol } from './mongolSeed';

@@ -5,9 +5,9 @@
   "scripts": {
     "start": "NODE_ENV=production node dist/index.js",
     "start:dev": "NODE_ENV=development nodemon --exec 'TS_NODE_TRANSPILE_ONLY=true ts-node' src/index.ts",
-    "build": "tsc --skipLibCheck",
-    "build:prod": "tsc --skipLibCheck && node build.js",
-    "build:emergency": "npx ncc build src/index.ts -o dist --skipLibCheck",
+    "build": "node install-types.js && tsc --skipLibCheck",
+    "build:prod": "node install-types.js && tsc --skipLibCheck && node build.js",
+    "build:emergency": "node install-types.js && node build.js",
     "test": "jest",
     "test:watch": "cross-env NODE_ENV=test jest --watch",
     "test:coverage": "cross-env NODE_ENV=test jest --coverage",
@@ -16,8 +16,9 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "directories": "node scripts/create-directories.js",
     "prepare": "npm run directories",
-    "postinstall": "npm run build:prod || npm run build:emergency",
-    "health": "curl -s http://localhost:3001/health"
+    "postinstall": "chmod +x install-types.js && chmod +x build.js && npm run build:prod || npm run build:emergency",
+    "health": "curl -s http://localhost:3001/health",
+    "install-types": "node install-types.js"
   },
   "engines": {
     "node": ">=16.0.0"
@@ -27,6 +28,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@types/node": "^20.17.24",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
@@ -51,7 +53,6 @@
     "@types/mongodb": "^4.0.6",
     "@types/mongoose": "^5.11.96",
     "@types/morgan": "^1.9.9",
-    "@types/node": "^20.17.24",
     "@types/supertest": "^6.0.2",
     "cross-env": "^7.0.3",
     "jest": "^29.7.0",
