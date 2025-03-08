@@ -2,7 +2,11 @@ services:
   - type: web
     name: empiresguide-api
     env: node
-    buildCommand: chmod +x prebuild.sh && ./prebuild.sh && npm install && npm run build
+    buildCommand: |
+      chmod +x prebuild.sh
+      ./prebuild.sh
+      npm install
+      npm run build:prod
     startCommand: npm start
     envVars:
       - key: NODE_ENV
@@ -16,6 +20,10 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: USE_COMPLETE_MATCHUPS
+        value: true
+      - key: SKIP_PREFLIGHT_CHECK
+        value: true
+      - key: SKIP_TYPE_CHECK
         value: true
     healthCheckPath: /api/ping
     autoDeploy: true

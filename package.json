@@ -5,7 +5,8 @@
   "scripts": {
     "start": "node dist/index.js",
     "dev": "nodemon src/index.ts",
-    "build": "tsc",
+    "build": "tsc --skipLibCheck",
+    "build:prod": "node prod-build.js",
     "test": "cross-env NODE_ENV=test jest --detectOpenHandles",
     "test:watch": "cross-env NODE_ENV=test jest --watch",
     "test:coverage": "cross-env NODE_ENV=test jest --coverage",
@@ -14,7 +15,7 @@
     "format": "prettier --write src/**/*.ts",
     "directories": "node scripts/create-directories.js",
     "prepare": "npm run directories",
-    "postinstall": "npm run build",
+    "postinstall": "npm run build:prod",
     "health": "curl -s http://localhost:3001/health"
   },
   "keywords": [],
