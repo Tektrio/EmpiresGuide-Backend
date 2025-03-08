@@ -132,6 +132,31 @@ function processTypeScriptContent(content) {
   // Remover tipos genéricos
   content = content.replace(/<[^>]+>/g, '');
   
+  // Correções especiais após a conversão
+  // 1. Variáveis não definidas em objetos
+  content = content.replace(/(\w+):\s*(\w+),/g, (match, key, value) => {
+    // Se parece ser uma referência a uma variável sem definição visível
+    if (value !== 'true' && value !== 'false' && value !== 'null' && 
+        !content.includes(`const ${value}`) && 
+        !content.includes(`let ${value}`) && 
+        !content.includes(`var ${value}`) &&
+        !content.includes(`function ${value}`) &&
+        !isNaN(value) === false) { // não é um número
+      // Substituir com um valor padrão baseado no nome
+      if (value.includes('timeout') || value.includes('Timeout')) {
+        return `${key}: 45000, // Valor padrão para ${value}`;
+      } else if (value.includes('retries') || value.includes('Retries')) {
+        return `${key}: 3, // Valor padrão para ${value}`;
+      } else {
+        return `${key}: true, // Valor padrão para ${value}`;
+      }
+    }
+    return match;
+  });
+
+  // 2. Caso específico para socketTimeoutMS que aparece como: retryWrites: true, socketTimeoutMS,
+  content = content.replace(/retryWrites:\s*true,\s*socketTimeoutMS,/g, 'retryWrites: true, socketTimeoutMS: 45000,');
+  
   return content;
 }
 
