@@ -1,158 +1,12 @@
 import mongoose from 'mongoose';
-import dotenv from 'dotenv';
+import { MongoMemoryServer } from 'mongodb-memory-server';
+import checkDatabaseConfig from '../utils/checkDbConfig';
 
-// Carregar variáveis de ambiente
-dotenv.config();
+// Verificar configuração
+const isConfigValid = checkDatabaseConfig();
 
-// Mock das funcionalidades do MongoDB para desenvolvimento sem MongoDB instalado
-const setupMemoryMockDB = () => {
-  const collections: Record<string, any[]> = {
-    civilizations: [
-      {
-        _id: 'civ1',
-        name: 'Tártaros',
-        strengths: [
-          'Mobilidade excepcional com unidades montadas',
-          'Forte economia baseada em ovelhas e comércio',
-          'Arqueiros montados letais',
-          'Capacidade de construir estruturas militares rapidamente'
-        ],
-        weaknesses: [
-          'Dependência de unidades caras',
-          'Vulnerabilidade a unidades anti-cavalaria',
-          'Base inicial mais frágil',
-          'Necessidade de microgerenciamento intenso'
-        ],
-        eraStrategies: {
-          eraI: {
-            buildOrder: ['Treinar aldeões', 'Coletar recursos', 'Explorar o mapa'],
-            keyUnits: ['Aldeões', 'Exploradores'],
-            keyTechnologies: ['Coleta melhorada']
-          },
-          eraII: {
-            buildOrder: ['Construir barracas', 'Treinar unidades militares', 'Expandir economia'],
-            keyUnits: ['Arqueiros Montados', 'Lanceiros'],
-            keyTechnologies: ['Metalurgia']
-          }
-        }
-      },
-      {
-        _id: 'civ2',
-        name: 'Hausa',
-        strengths: [
-          'Economia forte baseada em mineração',
-          'Unidades únicas poderosas',
-          'Bônus de pesquisa e tecnologia',
-          'Excelente na guerra de cerco'
-        ],
-        weaknesses: [
-          'Início de jogo mais lento',
-          'Unidades caras e especializadas',
-          'Dependência de recursos específicos',
-          'Vulnerabilidade a ataques rápidos'
-        ],
-        eraStrategies: {
-          eraI: {
-            buildOrder: ['Focar em mineração', 'Construir muralhas', 'Treinar defensores'],
-            keyUnits: ['Aldeões', 'Arqueiros'],
-            keyTechnologies: ['Mineração avançada']
-          },
-          eraII: {
-            buildOrder: ['Construir academia militar', 'Treinar unidades de elite', 'Expandir território'],
-            keyUnits: ['Guerreiros Hausa', 'Arqueiros de Elite'],
-            keyTechnologies: ['Metalurgia Avançada']
-          }
-        }
-      }
-    ],
-    landmarks: [
-      {
-        _id: 'landmark1',
-        name: 'Posto Comercial Tártaro',
-        civilization: 'Tártaros',
-        era: 'Era II',
-        effect: 'Gera ouro passivamente e aumenta a eficiência do comércio'
-      },
-      {
-        _id: 'landmark2',
-        name: 'Centro de Mineração',
-        civilization: 'Hausa',
-        era: 'Era II',
-        effect: 'Aumenta a eficiência da mineração de ouro e pedra'
-      }
-    ],
-    mapstrategies: [
-      {
-        _id: 'map1',
-        name: 'Ilhas em Guerra',
-        type: 'Naval',
-        generalStrategy: 'Foque no controle naval e expanda para outras ilhas quando possível.',
-        resourceControl: 'Garanta o controle de recursos marítimos e pontos de pesca.',
-        expansionPriorities: 'Expanda para ilhas menores para obter recursos adicionais.',
-        recommendedStrategies: {
-          early: ['Construa docas', 'Treine barcos de pesca', 'Explore o mapa'],
-          mid: ['Controle as águas', 'Expanda para ilhas', 'Fortifique bases'],
-          late: ['Domine as rotas marítimas', 'Ataque com frotas grandes', 'Controle recursos']
-        }
-      }
-    ],
-    civilizationmatchups: [
-      {
-        _id: 'matchup1',
-        playerCiv: 'Tártaros',
-        enemyCiv: 'Hausa',
-        earlyGameStrategy: 'Faça raides com arqueiros montados para atrasar a economia baseada em mineração.',
-        midGameStrategy: 'Evite confrontos diretos, mantenha a pressão com mobilidade superior.',
-        lateGameStrategy: 'Use sua cavalaria para atacar posições desprotegidas e evite confrontos diretos.',
-        unitsToFocus: ['Arqueiros Montados', 'Cavalaria Pesada', 'Lanceiros'],
-        unitsToAvoid: ['Guerreiros Hausa', 'Arqueiros de Elite Hausa']
-      }
-    ],
-    users: []
-  };
-
-  // Mock de funções para simular mongoose
-  const mockMongoose = {
-    model: (modelName: string) => {
-      const collectionName = modelName.toLowerCase() + 's';
-      return {
-        find: (query = {}) => {
-          return {
-            exec: () => Promise.resolve(collections[collectionName] || [])
-          };
-        },
-        findOne: (query = {}) => {
-          const collection = collections[collectionName] || [];
-          return {
-            exec: () => Promise.resolve(collection[0] || null)
-          };
-        },
-        findById: (id: string) => {
-          const collection = collections[collectionName] || [];
-          const item = collection.find(item => item._id === id);
-          return {
-            exec: () => Promise.resolve(item || null)
-          };
-        },
-        create: (data: any) => {
-          const collection = collections[collectionName] || [];
-          const newItem = { _id: `id_${Date.now()}`, ...data };
-          collection.push(newItem);
-          return Promise.resolve(newItem);
-        }
-      };
-    },
-    connect: () => Promise.resolve({
-      connection: {
-        host: 'memory-mock-db'
-      }
-    })
-  };
-
-  // Substituir o mongoose pelo mock
-  (global as any).mockMongooseEnabled = true;
-  return mockMongoose;
-};
+// Variável para armazenar o servidor em memória
+let mongoServer: MongoMemoryServer | null = null;
 
 const connectDB = async () => {
   try {
@@ -169,52 +23,96 @@ const connectDB = async () => {
       console.log('✅ Usando configuração de banco de dados do formato URI direto');
     } else {
       console.warn('⚠️ Nenhuma variável de ambiente de conexão com banco de dados definida!');
+      
+      // Verificar modo de tolerância
+      const isToleranceMode = process.env.MONGODB_TOLERANCE_MODE === 'true';
+      const allowMockInProduction = process.env.ALLOW_MOCK_DB_IN_PRODUCTION === 'true';
+      
+      if (isToleranceMode || process.env.NODE_ENV !== 'production' || allowMockInProduction) {
+        // Iniciar banco em memória como fallback
+        return connectMemoryDB();
+      }
+      
       throw new Error('Variáveis de ambiente de banco de dados não definidas');
     }
     
     // Opções da conexão para mais resiliência
-    const mongooseOptions = {
-      serverSelectionTimeoutMS: 5000, // Timeout de 5 segundos para tentar conectar
+    const connectOptions = {
+      serverSelectionTimeoutMS: 10000, // 10 segundos (padrão é 30s)
       retryWrites: true,
-      socketTimeoutMS: 45000, // Timeout de 45 segundos para operações de socket
+      socketTimeoutMS: 45000, // 45 segundos
       family: 4 // Forçar IPv4
     };
+
+    // Conectar ao MongoDB Atlas
+    const conn = await mongoose.connect(connectionString, connectOptions);
     
-    // Tenta conectar ao MongoDB Atlas
-    const conn = await mongoose.connect(connectionString, mongooseOptions);
-    console.log(`✅ MongoDB Atlas Conectado: ${conn.connection.host}`);
+    console.log(`✅ MongoDB conectado: ${conn.connection.host}`);
     
-    // Atribuir mongoose ao contexto global para acesso em outros módulos
-    (global as any).mongoose = mongoose;
+    // Tornar o mongoose disponível globalmente
+    global.mongoose = mongoose;
     
     return conn;
-  } catch (error) {
-    console.error(`❌ Erro ao conectar ao MongoDB Atlas: ${error instanceof Error ? error.message : String(error)}`);
+  } catch (error: any) {
+    console.error(`❌ Erro ao conectar ao MongoDB Atlas: ${error.message}`);
+    
+    // Em produção, verificar se modo de tolerância está ativo
+    const isToleranceMode = process.env.MONGODB_TOLERANCE_MODE === 'true';
+    const allowMockInProduction = process.env.ALLOW_MOCK_DB_IN_PRODUCTION === 'true';
     
     if (process.env.NODE_ENV === 'production') {
-      console.warn('⚠️ Falha na conexão com MongoDB em ambiente de produção, usando banco em memória como fallback de emergência');
-      
-      // Configurar banco de dados em memória como fallback mesmo em produção
-      const mockDB = setupMemoryMockDB();
-      try {
-        const conn = await mockDB.connect();
-        console.log(`✅ Conectado ao banco de dados em memória: ${conn.connection.host}`);
-        return conn;
-      } catch (mockError) {
-        console.error('❌ Falha ao configurar banco de dados em memória');
-        console.log('⚠️ Sistema executando com funcionalidade limitada!');
-        return null; // Retornar null para evitar interrupção da aplicação
+      if (isToleranceMode || allowMockInProduction) {
+        console.warn('⚠️ Falha na conexão com MongoDB em ambiente de produção, usando banco em memória como fallback de emergência');
+        return connectMemoryDB();
+      } else {
+        console.error('❌ Falha na conexão com MongoDB em ambiente de produção. Configure MONGODB_TOLERANCE_MODE=true para usar fallback');
+        process.exit(1);
       }
     } else {
-      console.log('⚠️ Usando banco de dados em memória para desenvolvimento...');
-      
-      // Configurar banco de dados em memória como fallback
-      const mockDB = setupMemoryMockDB();
-      const conn = await mockDB.connect();
-      console.log(`✅ Conectado ao banco de dados em memória: ${conn.connection.host}`);
-      return conn;
+      // Em desenvolvimento, tentar usar o banco em memória automaticamente
+      console.warn('⚠️ Falha na conexão com MongoDB em ambiente de desenvolvimento, usando banco em memória como fallback');
+      return connectMemoryDB();
     }
   }
 };
 
-export default connectDB; 
+// Função para conectar ao banco em memória para desenvolvimento ou fallback
+const connectMemoryDB = async () => {
+  try {
+    // Iniciar servidor MongoDB em memória
+    mongoServer = await MongoMemoryServer.create();
+    const uri = mongoServer.getUri();
+    
+    // Conectar ao banco em memória
+    await mongoose.connect(uri);
+    
+    console.log(`✅ Conectado ao banco de dados em memória: memory-mock-db`);
+    
+    // Tornar o mongoose disponível globalmente
+    global.mongoose = mongoose;
+    
+    return mongoose.connection;
+  } catch (err: any) {
+    console.error(`❌ Erro ao conectar ao banco em memória: ${err.message}`);
+    process.exit(1);
+  }
+};
+
+// Função para encerrar a conexão
+const disconnectDB = async () => {
+  try {
+    await mongoose.disconnect();
+    
+    // Se estiver usando o servidor em memória, encerrar
+    if (mongoServer) {
+      await mongoServer.stop();
+      mongoServer = null;
+    }
+    
+    console.log('✅ Conexão com o banco de dados encerrada');
+  } catch (err: any) {
+    console.error(`❌ Erro ao encerrar conexão com o banco: ${err.message}`);
+  }
+};
+
+export { connectDB, disconnectDB }; 

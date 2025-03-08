@@ -1,5 +1,4 @@
 import { IUser } from '../models/User';
-import mongoose from 'mongoose';
 
 declare global {
   namespace Express {
@@ -11,8 +10,8 @@ declare global {
     }
   }
 
-  // Adicionando mongoose global para acesso em qualquer lugar
-  var mongoose: typeof mongoose;
+  // Define variável mongoose no objeto global
+  var mongoose: any;
 }
 
 // Necessário para fazer este arquivo ser um módulo ES

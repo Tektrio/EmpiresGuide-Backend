@@ -1,57 +1,65 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import app from './app';
-import connectDB from './config/db';
+import { connectDB } from './config/db';
 import { checkDatabaseConfig } from './utils/checkDbConfig';
 
 // Carregar variáveis de ambiente
 dotenv.config();
 
-const PORT = process.env.PORT || 3001;
+// Verificar configuração do banco de dados
+const dbConfigValid = checkDatabaseConfig();
+
+// Definir a porta do servidor
+const PORT = process.env.PORT || 3000;
+
+// Tornar a API disponível para todos caso expressamente configurada para isso
+let host = 'localhost';
+if (process.env.BIND_ALL_INTERFACES === 'true') {
+  host = '0.0.0.0';
+}
 
 // Iniciar o servidor após conectar ao banco de dados
 const startServer = async () => {
   try {
     // Verificar configuração do banco de dados
-    const isDbConfigValid = checkDatabaseConfig();
-    if (!isDbConfigValid) {
-      console.warn('⚠️ Configuração de banco de dados potencialmente inválida');
-    }
+    console.log(`✅ Verificação de configuração do banco de dados: ${dbConfigValid ? 'Válida' : 'Inválida mas continuando'}`);
     
     // Conectar ao banco de dados
-    const connection = await connectDB();
+    await connectDB();
     
-    // Mesmo se a conexão falhar, continuamos a iniciar o servidor
-    // (connection será null se a conexão falhar completamente)
-    if (!connection) {
-      console.warn('⚠️ Iniciando servidor com funcionalidade limitada devido a problemas com o banco de dados');
-    }
+    // Definir handler para encerramento limpo
+    process.on('SIGINT', async () => {
+      console.log('Encerrando servidor...');
+      process.exit(0);
+    });
     
-    app.listen(PORT, () => {
+    process.on('SIGTERM', async () => {
+      console.log('Encerrando servidor...');
+      process.exit(0);
+    });
+    
+    // Iniciar o servidor
+    app.listen(PORT, host, () => {
       console.log(`✅ Servidor rodando na porta ${PORT}`);
-      console.log(`📊 Modo: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`🔗 API URL: http://localhost:${PORT}`);
-      
-      // Adicionar informações sobre o status da API
-      if (!connection) {
-        console.log('⚠️ API em MODO DE EMERGÊNCIA - Algumas funcionalidades não estarão disponíveis');
-      }
+      console.log(`📊 Modo: ${process.env.NODE_ENV}`);
+      console.log(`🔗 API URL: http://${host === '0.0.0.0' ? 'localhost' : host}:${PORT}`);
     });
   } catch (error) {
     console.error('❌ Erro ao iniciar o servidor:', error);
-    console.log('🔄 Tentando iniciar em modo de emergência...');
     
     // Tentar iniciar o servidor mesmo com erro
     try {
-      app.listen(PORT, () => {
+      app.listen(PORT, host, () => {
         console.log(`✅ Servidor de emergência rodando na porta ${PORT}`);
         console.log('⚠️ API em MODO DE EMERGÊNCIA - Funcionalidade extremamente limitada');
       });
-    } catch (emergencyError) {
-      console.error('❌ Falha crítica ao iniciar o servidor de emergência:', emergencyError);
+    } catch (serverError) {
+      console.error('❌ Falha ao iniciar o servidor de emergência:', serverError);
       process.exit(1);
     }
   }
 };
 
+// Iniciar o servidor
 startServer(); 
