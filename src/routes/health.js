@@ -65,4 +65,22 @@ router.get('/ping', (req, res) => {
   });
 });
 
+// Rota alternativa para /api/ping
+router.get('/api/ping', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    message: 'API online',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Rota específica para health check do Render - deve ter a mesma rota configurada no render.yaml
+router.get('/ping', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    message: 'pong',
+    timestamp: new Date().toISOString()
+  });
+});
+
 module.exports = router; 

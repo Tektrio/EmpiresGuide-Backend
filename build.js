@@ -152,11 +152,20 @@ try {
   copyAndConvert(srcDir, distDir);
   console.log('✅ Conversão concluída com sucesso!');
   
-  // Criar diretório de logs se necessário
+  // Criar diretório de logs e uploads se necessário
   const logsDir = path.join(__dirname, 'logs');
-  if (!fs.existsSync(logsDir)) {
-    fs.mkdirSync(logsDir);
-  }
+  const uploadsDir = path.join(__dirname, 'uploads');
+  const uploadsImagesDir = path.join(uploadsDir, 'images');
+  const uploadsDocumentsDir = path.join(uploadsDir, 'documents');
+  const uploadsTempDir = path.join(uploadsDir, 'temp');
+  
+  // Criar diretórios necessários
+  [logsDir, uploadsDir, uploadsImagesDir, uploadsDocumentsDir, uploadsTempDir].forEach(dir => {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+      console.log(`✅ Diretório criado: ${dir}`);
+    }
+  });
   
   // Adicionar informações de build
   const buildInfo = {

@@ -38,9 +38,11 @@ const connectDB = async () => {
     
     // Opções da conexão para mais resiliência
     const connectOptions: mongoose.ConnectOptions = {
-      serverSelectionTimeoutMS: 10000, // 10 segundos (padrão é 30s)
-      retryWrites: true,
-      socketTimeoutMS: 45000, // 45 segundos
+      serverSelectionTimeoutMS: process.env.SERVER_SELECTION_TIMEOUT_MS ? 
+        parseInt(process.env.SERVER_SELECTION_TIMEOUT_MS) : 10000, // 10 segundos (padrão é 30s)
+      retryWrites: process.env.RETRY_WRITES === 'true' ? true : true,
+      socketTimeoutMS: process.env.SOCKET_TIMEOUT_MS ? 
+        parseInt(process.env.SOCKET_TIMEOUT_MS) : 45000, // 45 segundos
       family: 4 // Forçar IPv4
     };
 

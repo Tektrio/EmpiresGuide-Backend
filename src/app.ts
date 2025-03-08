@@ -60,7 +60,13 @@ app.use(cors());
 app.use(helmet());
 
 // Configurar o logger
-const accessLogStream = fs.createWriteStream(path.join(__dirname, '../logs/access.log'), { flags: 'a' });
+// Garantir que o diretório de logs exista
+const logsDir = path.join(__dirname, '../logs');
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir, { recursive: true });
+}
+
+const accessLogStream = fs.createWriteStream(path.join(logsDir, 'access.log'), { flags: 'a' });
 app.use(morgan('combined', { stream: accessLogStream }));
 app.use(morgan('dev'));
 
@@ -107,19 +113,7 @@ app.get('/', (req: Request, res: Response) => {
   `);
 });
 
-app.get('/api/ping', (req: Request, res: Response) => {
-  res.status(200).json({ status: 'ok', message: 'API online' });
-});
-
-app.get('/health', (req: Request, res: Response) => {
-  const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
-  res.status(200).json({ 
-    status: 'ok', 
-    dbConnected: isDbConnected,
-    dbType: global.mockMongooseEnabled ? 'memory' : 'mongodb',
-    env: process.env.NODE_ENV
-  });
-});
+// As rotas /api/ping, /health e /health/ping são processadas pelo healthRoutes
 
 // Aplicar middleware de verificação de banco de dados após rotas básicas
 app.use(dbConnectionMiddleware);

@@ -21,6 +21,18 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: DATABASE_NAME
+        sync: false
+      - key: DATABASE_HOST
+        sync: false
+      - key: SOCKET_TIMEOUT_MS
+        value: 45000
+      - key: SERVER_SELECTION_TIMEOUT_MS
+        value: 10000
+      - key: RETRY_WRITES
+        value: true
       - key: USE_COMPLETE_MATCHUPS
         value: true
       - key: SKIP_PREFLIGHT_CHECK
@@ -33,11 +45,13 @@ services:
         value: true
       - key: ALLOW_MOCK_DB_IN_PRODUCTION
         value: true
-    healthCheckPath: /api/ping
+      - key: RENDER
+        value: true
+    healthCheckPath: /health/ping
     autoDeploy: true
     disk:
       name: uploads
-      mountPath: /uploads
+      mountPath: /opt/render/project/src/uploads
       sizeGB: 1
     scaling:
       minInstances: 1
