@@ -16,16 +16,12 @@ services:
       - key: PORT
         sync: false
       - key: DATABASE
+        value: mongodb+srv://tektrio2023:<PASSWORD>@age4.jx5tt.mongodb.net/?retryWrites=true&w=majority&appName=age4
         sync: false
       - key: DATABASE_PASSWORD
+        value: EFsXKM83w4zMmkTJ
         sync: false
       - key: JWT_SECRET
-        sync: false
-      - key: MONGODB_URI
-        sync: false
-      - key: DATABASE_NAME
-        sync: false
-      - key: DATABASE_HOST
         sync: false
       - key: SOCKET_TIMEOUT_MS
         value: 45000

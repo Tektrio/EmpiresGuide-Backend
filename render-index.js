@@ -6,6 +6,12 @@
 // Carregar variáveis de ambiente
 require('dotenv').config();
 
+// Imprimir informações de ambiente para diagnóstico
+console.log('🔍 Verificando configurações de ambiente...');
+console.log('📊 NODE_ENV:', process.env.NODE_ENV);
+console.log('🔢 PORT:', process.env.PORT);
+console.log('🔒 MongoDB configurado:', process.env.DATABASE ? 'Sim' : 'Não');
+
 // Importar dependências necessárias
 const app = require('./dist/app');
 const { connectDB } = require('./dist/config/db');
@@ -22,9 +28,16 @@ const checkDbConfig = () => {
   
   if (process.env.DATABASE && process.env.DATABASE_PASSWORD) {
     console.log('✅ Configuração de banco de dados no formato Tek Trio está presente');
+    console.log('✅ Usando DATABASE:', 
+      process.env.DATABASE.replace(
+        /mongodb\+srv:\/\/([^:]+):[^@]+@(.+)/,
+        'mongodb+srv://$1:****@$2'
+      )
+    );
     return true;
   }
   
+  // Esse formato não será mais usado, mas mantemos a verificação por segurança
   if (process.env.MONGODB_URI) {
     console.log('✅ Configuração de banco de dados no formato URI direto está presente');
     return true;
