@@ -41,6 +41,8 @@ const startServer = async () => {
       console.log(`✅ Servidor rodando na porta ${PORT}`);
       console.log(`📊 Modo: ${process.env.NODE_ENV}`);
       console.log(`🔗 API URL: http://${host === '0.0.0.0' ? 'localhost' : host}:${PORT}`);
+      // Adicionar mensagem de status para o Render
+      console.log('✅ API está pronta para receber conexões');
     });
   } catch (error) {
     console.error('❌ Erro ao iniciar o servidor:', error);
