@@ -196,7 +196,11 @@ try {
         
         // Substituir template strings potencialmente problemáticas
         indexContent = indexContent.replace(/console\.log\(`🔗 API URL: http/g, 
-          "console.log('🔗 API URL: http://' + (host === '0.0.0.0' ? 'localhost' : host) + ':' + PORT");
+          "console.log('🔗 API URL: http://' + (host === '0.0.0.0' ? 'localhost' : host) + ':' + PORT);");
+        
+        // Substituir outras aparições similares
+        indexContent = indexContent.replace(/console\.log\('🔗 API URL: http:/g, 
+          "console.log('🔗 API URL: http://' + (host === '0.0.0.0' ? 'localhost' : host) + ':' + PORT);");
         
         // Corrigir outras strings do arquivo index.js
         indexContent = indexContent.replace(/(\s*)console\.log\(`([^`]+)`\);/g, 
@@ -235,6 +239,51 @@ try {
           "stack: process.env.NODE_ENV === 'development' ? err.stack : undefined\n  })"
         );
         
+        // Corrigir strings HTML danificadas
+        appContent = appContent.replace(/res\.status\(200\)\.send\(`\s*([^`]*)`\);/gs, function(match, content) {
+          // Criar uma versão limpa do HTML
+          const cleanHTML = `
+    <html>
+      <head>
+        <title>EmpiresGuide API</title>
+        <style>
+          body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+          h1 { color: #333; }
+          .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+          .status.ok { background-color: #d4edda; color: #155724; }
+          .status.error { background-color: #f8d7da; color: #721c24; }
+          .info { background-color: #e2e3e5; padding: 10px; border-radius: 4px; margin: 10px 0; }
+        </style>
+      </head>
+      <body>
+        <h1>EmpiresGuide API</h1>
+        <div class="status ${isDbConnected ? 'ok' : 'error'}">
+          <strong>Banco de Dados:</strong> ${dbStatus} (${dbType})
+        </div>
+        <div class="info">
+          <strong>Ambiente:</strong> ${process.env.NODE_ENV}
+        </div>
+        <div class="info">
+          <strong>Endpoints Ativos:</strong>
+          <ul>
+            <li>/api/strategies - Estratégias para civilizações</li>
+            <li>/api/matchups - Confrontos entre civilizações</li>
+            <li>/api/users - Gestão de usuários</li>
+            <li>/api/contributions - Contribuições da comunidade</li>
+            <li>/api/guides - Guias estratégicos completos</li>
+          </ul>
+        </div>
+        <p>© Tek Trio 2025 - Todos os direitos reservados.</p>
+      </body>
+    </html>
+  `;
+          return `res.status(200).send(\`${cleanHTML}\`);`;
+        });
+        
+        // Garantir que todas as variáveis não definidas tenham algum valor
+        appContent = appContent.replace(/isDbConnected,/g, "isDbConnected: false,");
+        appContent = appContent.replace(/allowedRoutes,/g, "allowedRoutes: nonDbRoutes,");
+        
         fs.writeFileSync(appJsPath, appContent);
         console.log('✅ Arquivo app.js corrigido manualmente para o Render');
       }
@@ -246,6 +295,58 @@ try {
   // Aplicar correções específicas para o Render
   if (isRenderEnvironment) {
     fixRenderSpecificIssues();
+  }
+  
+  // Verificar se há erros sintáticos nos arquivos JavaScript gerados
+  console.log('🔍 Verificando arquivos JavaScript gerados...');
+  const checkFiles = [
+    path.join(distDir, 'index.js'),
+    path.join(distDir, 'app.js'),
+    path.join(distDir, 'config', 'db.js')
+  ];
+  
+  for (const file of checkFiles) {
+    if (fs.existsSync(file)) {
+      try {
+        // Tentar validar o arquivo usando o Node.js
+        const content = fs.readFileSync(file, 'utf8');
+        
+        // Procurar por patterns que poderiam causar SyntaxError
+        if (content.includes("console.log('🔗 API URL: http:")) {
+          console.log(`⚠️ Potencial erro de sintaxe em ${file} - Corrigindo console.log...`);
+          let fixed = content.replace(
+            /console\.log\('🔗 API URL: http:/g,
+            "console.log('🔗 API URL: http://' + (host === '0.0.0.0' ? 'localhost' : host) + ':' + PORT);"
+          ).replace(/console\.log\('🔗 API URL: http:[^']*'\);/g, 
+            "console.log('🔗 API URL: http://' + (host === '0.0.0.0' ? 'localhost' : host) + ':' + PORT);"
+          );
+          fs.writeFileSync(file, fixed);
+          console.log(`✅ Correção aplicada em ${file}`);
+        }
+        
+        try {
+          // Tentar validar o JavaScript usando o parser do Node
+          require('vm').compileFunction(content, [], { filename: file });
+          console.log(`✅ Arquivo verificado com sucesso: ${file}`);
+        } catch (syntaxError) {
+          console.error(`❌ Erro de sintaxe em ${file}:`, syntaxError.message);
+          
+          if (syntaxError.message.includes('Unexpected token')) {
+            // Tentar corrigir automaticamente alguns casos comuns de erro
+            const lines = content.split('\n');
+            const errorLine = syntaxError.lineNumber || -1;
+            
+            if (errorLine > 0 && errorLine <= lines.length) {
+              console.log(`📝 Linha problemática (${errorLine}): ${lines[errorLine-1]}`);
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`❌ Erro ao verificar ${file}:`, error.message);
+      }
+    } else {
+      console.warn(`⚠️ Arquivo não encontrado: ${file}`);
+    }
   }
   
   // Mostrar arquivos gerados no ambiente Render
