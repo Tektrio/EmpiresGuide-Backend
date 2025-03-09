@@ -1,9 +1,8 @@
+
 declare module 'express';
 declare module 'express-status-monitor';
 
 // Tipos simplificados para Express
-
-// Estendendo o Request
 declare global {
   namespace Express {
     interface Request {
@@ -20,4 +19,4 @@ declare global {
   }
 }
 
-export {}; 
+export {};
