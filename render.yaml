@@ -9,7 +9,7 @@ services:
       npm install --no-optional
       chmod +x build.js
       node build.js
-    startCommand: node dist/index.js
+    startCommand: node render-index.js
     envVars:
       - key: NODE_ENV
         value: production
