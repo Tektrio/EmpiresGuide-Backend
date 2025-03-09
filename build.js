@@ -102,6 +102,13 @@ function simplifyTsToJs(content) {
   // 9.8 Remover linhas vazias consecutivas
   content = content.replace(/\n\s*\n\s*\n/g, '\n\n');
   
+  // 9.9 Corrigir log da API URL no arquivo index.js - problema específico do Render
+  content = content.replace(/console\.log\(`🔗 API URL: http/g, 
+                          'console.log(`🔗 API URL: http://${host === \'0.0.0.0\' ? \'localhost\' : host}:${PORT}`');
+  
+  // 9.10 Certificar-se que não haja backticks corrompidos
+  content = content.replace(/(`.*?)\\n(.*?`)/g, '$1$2');
+  
   return content;
 }
 
@@ -178,6 +185,68 @@ try {
     path.join(distDir, 'build-info.json'), 
     JSON.stringify(buildInfo, null, 2)
   );
+  
+  // Corrigir manualmente arquivos problemáticos no Render
+  const fixRenderSpecificIssues = () => {
+    try {
+      // Corrigir index.js no ambiente Render
+      const indexJsPath = path.join(distDir, 'index.js');
+      if (fs.existsSync(indexJsPath)) {
+        let indexContent = fs.readFileSync(indexJsPath, 'utf8');
+        
+        // Substituir template strings potencialmente problemáticas
+        indexContent = indexContent.replace(/console\.log\(`🔗 API URL: http/g, 
+          "console.log('🔗 API URL: http://' + (host === '0.0.0.0' ? 'localhost' : host) + ':' + PORT");
+        
+        // Corrigir outras strings do arquivo index.js
+        indexContent = indexContent.replace(/(\s*)console\.log\(`([^`]+)`\);/g, 
+          (match, space, content) => `${space}console.log('${content}');`);
+        
+        fs.writeFileSync(indexJsPath, indexContent);
+        console.log('✅ Arquivo index.js corrigido manualmente para o Render');
+      }
+      
+      // Corrigir app.js no ambiente Render
+      const appJsPath = path.join(distDir, 'app.js');
+      if (fs.existsSync(appJsPath)) {
+        let appContent = fs.readFileSync(appJsPath, 'utf8');
+        
+        // Corrigir o middleware de conexão
+        appContent = appContent.replace(
+          /if \(nonDbRoutes\.includes\(req\.path\)\) \{\s*return next\(\);\s*\n\s*if/g,
+          "if (nonDbRoutes.includes(req.path)) {\n    return next();\n  }\n\n  if"
+        );
+        
+        // Corrigir parâmetro extended
+        appContent = appContent.replace(
+          /urlencoded\(\{ extended, limit: '10mb' \}\)/g, 
+          "urlencoded({ extended: true, limit: '10mb' })"
+        );
+        
+        // Corrigir criação de diretório recursiva
+        appContent = appContent.replace(
+          /fs\.mkdirSync\(logsDir, \{ recursive\s*\)\s*;/g,
+          "fs.mkdirSync(logsDir, { recursive: true });"
+        );
+        
+        // Corrigir o handler de erros
+        appContent = appContent.replace(
+          /stack=== 'development' \? err\.stack \)/g,
+          "stack: process.env.NODE_ENV === 'development' ? err.stack : undefined\n  })"
+        );
+        
+        fs.writeFileSync(appJsPath, appContent);
+        console.log('✅ Arquivo app.js corrigido manualmente para o Render');
+      }
+    } catch (error) {
+      console.error('❌ Erro ao aplicar correções manuais:', error.message);
+    }
+  };
+  
+  // Aplicar correções específicas para o Render
+  if (isRenderEnvironment) {
+    fixRenderSpecificIssues();
+  }
   
   // Mostrar arquivos gerados no ambiente Render
   if (isRenderEnvironment) {

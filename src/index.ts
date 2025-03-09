@@ -20,7 +20,7 @@ let host = '0.0.0.0'; // Sempre escutar em todas as interfaces no ambiente de pr
 const startServer = async () => {
   try {
     // Verificar configuração do banco de dados
-    console.log(`✅ Verificação de configuração do banco de dados: ${dbConfigValid ? 'Válida' : 'Inválida mas continuando'}`);
+    console.log('✅ Verificação de configuração do banco de dados: ' + (dbConfigValid ? 'Válida' : 'Inválida mas continuando'));
     
     // Conectar ao banco de dados
     await connectDB();
@@ -38,9 +38,10 @@ const startServer = async () => {
     
     // Iniciar o servidor
     app.listen(PORT, host, () => {
-      console.log(`✅ Servidor rodando na porta ${PORT}`);
-      console.log(`📊 Modo: ${process.env.NODE_ENV}`);
-      console.log(`🔗 API URL: http://${host === '0.0.0.0' ? 'localhost' : host}:${PORT}`);
+      console.log('✅ Servidor rodando na porta ' + PORT);
+      console.log('📊 Modo: ' + (process.env.NODE_ENV || 'development'));
+      // Usando string simples em vez de template string para evitar problemas no Render
+      console.log('🔗 API URL: http://' + (host === '0.0.0.0' ? 'localhost' : host) + ':' + PORT);
       // Adicionar mensagem de status para o Render
       console.log('✅ API está pronta para receber conexões');
     });
@@ -50,7 +51,7 @@ const startServer = async () => {
     // Tentar iniciar o servidor mesmo com erro
     try {
       app.listen(PORT, host, () => {
-        console.log(`✅ Servidor de emergência rodando na porta ${PORT}`);
+        console.log('✅ Servidor de emergência rodando na porta ' + PORT);
         console.log('⚠️ API em MODO DE EMERGÊNCIA - Funcionalidade extremamente limitada');
       });
     } catch (serverError) {
