@@ -39,9 +39,12 @@ function simplifyTsToJs(content) {
   // 2. Remover blocos de type completamente
   content = content.replace(/type\s+\w+\s*=[\s\S]*?;/g, '');
   
-  // 3. Converter importações para CommonJS
+  // 3. Converter importações para CommonJS - remover completamente qualquer sintaxe import
   content = content.replace(/import\s+\*\s+as\s+(\w+)\s+from\s+['"]([^'"]+)['"];?/g, 'const $1 = require("$2");');
   content = content.replace(/import\s+(\w+)\s+from\s+['"]([^'"]+)['"];?/g, 'const $1 = require("$2");');
+  
+  // Remover qualquer import restante que não tenha sido convertido
+  content = content.replace(/import\s+.*?from\s+['"].*?['"];?/g, '');
   
   // 4. Converter importações desestruturadas
   content = content.replace(/import\s+\{\s*([^}]+)\s*\}\s+from\s+['"]([^'"]+)['"];?/g, (match, imports, module) => {
@@ -75,10 +78,18 @@ function simplifyTsToJs(content) {
   });
   
   // 9. Corrigir problemas específicos
-  // 9.1 Corrigir socketTimeoutMS
+  // 9.1 Corrigir opções de conexão no db.js
   content = content.replace(/socketTimeoutMS,/g, 'socketTimeoutMS: 45000,');
   content = content.replace(/serverSelectionTimeoutMS,/g, 'serverSelectionTimeoutMS: 10000,');
   content = content.replace(/retryWrites,/g, 'retryWrites: true,');
+  content = content.replace(/family,/g, 'family: 4,');
+      
+  // Corrigir específicamente o problema com o retryWrites
+  content = content.replace(/retryWrites: process\.env\.RETRY_WRITES === 'true' \? true : true,/g, 
+                          'retryWrites: true,');
+      
+  // Remover vírgulas extras em objetos JSON
+  content = content.replace(/,(\s*})/g, '$1');
   
   // 9.2 Corrigir o problema com o morgan
   content = content.replace(/app\.use\(morgan\('combined', \{ stream\)\);/g, 
@@ -189,60 +200,195 @@ try {
   // Corrigir manualmente arquivos problemáticos no Render
   const fixRenderSpecificIssues = () => {
     try {
-      // Corrigir index.js no ambiente Render
+      // Substituir completamente o arquivo index.js para garantir que não haja erros
       const indexJsPath = path.join(distDir, 'index.js');
-      if (fs.existsSync(indexJsPath)) {
-        let indexContent = fs.readFileSync(indexJsPath, 'utf8');
+      
+      // Criar um index.js simplificado que evita todos os problemas
+      const safeIndexContent = `
+"use strict";
+
+// Carregar variáveis de ambiente
+const dotenv = require('dotenv');
+dotenv.config();
+
+// Importar dependências
+const app = require('./app');
+const { connectDB } = require('./config/db');
+const { checkDatabaseConfig } = require('./utils/checkDbConfig');
+
+// Verificar configuração do banco de dados
+const dbConfigValid = checkDatabaseConfig();
+
+// Definir a porta do servidor
+const PORT = process.env.PORT || 3000;
+
+// Definir o host - No Render.com, precisamos escutar em 0.0.0.0
+const host = '0.0.0.0'; // Sempre escutar em todas as interfaces no ambiente de produção
+
+// Iniciar o servidor após conectar ao banco de dados
+const startServer = async () => {
+  try {
+    // Verificar configuração do banco de dados
+    console.log('✅ Verificação de configuração do banco de dados: ' + (dbConfigValid ? 'Válida' : 'Inválida mas continuando'));
+    
+    // Conectar ao banco de dados
+    await connectDB();
+    
+    // Definir handler para encerramento limpo
+    process.on('SIGINT', async () => {
+      console.log('Encerrando servidor...');
+      process.exit(0);
+    });
+    
+    process.on('SIGTERM', async () => {
+      console.log('Encerrando servidor...');
+      process.exit(0);
+    });
+    
+    // Iniciar o servidor
+    app.listen(PORT, host, () => {
+      console.log('✅ Servidor rodando na porta ' + PORT);
+      console.log('📊 Modo: ' + (process.env.NODE_ENV || 'development'));
+      console.log('🔗 API URL: http://' + (host === '0.0.0.0' ? 'localhost' : host) + ':' + PORT);
+      console.log('✅ API está pronta para receber conexões');
+    });
+  } catch (error) {
+    console.error('❌ Erro ao iniciar o servidor:', error);
+    
+    // Tentar iniciar o servidor mesmo com erro
+    try {
+      app.listen(PORT, host, () => {
+        console.log('✅ Servidor de emergência rodando na porta ' + PORT);
+        console.log('⚠️ API em MODO DE EMERGÊNCIA - Funcionalidade extremamente limitada');
+      });
+    } catch (serverError) {
+      console.error('❌ Falha ao iniciar o servidor de emergência:', serverError);
+      process.exit(1);
+    }
+  }
+};
+
+// Iniciar o servidor
+startServer();
+      `;
+      
+      // Escrever o arquivo seguro
+      fs.writeFileSync(indexJsPath, safeIndexContent);
+      console.log('✅ Arquivo index.js substituído por uma versão segura');
+      
+      
+      // Corrigir o arquivo db.js para garantir que não haja erros de sintaxe
+      const dbJsPath = path.join(distDir, 'config', 'db.js');
+      if (fs.existsSync(dbJsPath)) {
+        let dbContent = fs.readFileSync(dbJsPath, 'utf8');
         
-        // Substituir template strings potencialmente problemáticas
-        indexContent = indexContent.replace(/console\.log\(`🔗 API URL: http/g, 
-          "console.log('🔗 API URL: http://' + (host === '0.0.0.0' ? 'localhost' : host) + ':' + PORT);");
+        // Corrigir sintaxe do objeto connectOptions
+        dbContent = dbContent.replace(
+          /const connectOptions = \{[\s\S]*?\};/g,
+          `const connectOptions = {
+  serverSelectionTimeoutMS: process.env.SERVER_SELECTION_TIMEOUT_MS ? 
+    parseInt(process.env.SERVER_SELECTION_TIMEOUT_MS) : 10000,
+  retryWrites: true,
+  socketTimeoutMS: process.env.SOCKET_TIMEOUT_MS ? 
+    parseInt(process.env.SOCKET_TIMEOUT_MS) : 45000,
+  family: 4
+};`
+        );
         
-        // Substituir outras aparições similares
-        indexContent = indexContent.replace(/console\.log\('🔗 API URL: http:/g, 
-          "console.log('🔗 API URL: http://' + (host === '0.0.0.0' ? 'localhost' : host) + ':' + PORT);");
+        // Garantir que não existam vírgulas extras ou erros de sintaxe
+        dbContent = dbContent.replace(/,(\s*})/g, '$1');
+        dbContent = dbContent.replace(/,(\s*\])/g, '$1');
         
-        // Corrigir outras strings do arquivo index.js
-        indexContent = indexContent.replace(/(\s*)console\.log\(`([^`]+)`\);/g, 
-          (match, space, content) => `${space}console.log('${content}');`);
-        
-        fs.writeFileSync(indexJsPath, indexContent);
-        console.log('✅ Arquivo index.js corrigido manualmente para o Render');
+        fs.writeFileSync(dbJsPath, dbContent);
+        console.log('✅ Arquivo db.js corrigido manualmente para o Render');
       }
       
-      // Corrigir app.js no ambiente Render
+      // Substituir completamente o arquivo app.js para garantir que não haja erros
       const appJsPath = path.join(distDir, 'app.js');
       if (fs.existsSync(appJsPath)) {
-        let appContent = fs.readFileSync(appJsPath, 'utf8');
-        
-        // Corrigir o middleware de conexão
-        appContent = appContent.replace(
-          /if \(nonDbRoutes\.includes\(req\.path\)\) \{\s*return next\(\);\s*\n\s*if/g,
-          "if (nonDbRoutes.includes(req.path)) {\n    return next();\n  }\n\n  if"
-        );
-        
-        // Corrigir parâmetro extended
-        appContent = appContent.replace(
-          /urlencoded\(\{ extended, limit: '10mb' \}\)/g, 
-          "urlencoded({ extended: true, limit: '10mb' })"
-        );
-        
-        // Corrigir criação de diretório recursiva
-        appContent = appContent.replace(
-          /fs\.mkdirSync\(logsDir, \{ recursive\s*\)\s*;/g,
-          "fs.mkdirSync(logsDir, { recursive: true });"
-        );
-        
-        // Corrigir o handler de erros
-        appContent = appContent.replace(
-          /stack=== 'development' \? err\.stack \)/g,
-          "stack: process.env.NODE_ENV === 'development' ? err.stack : undefined\n  })"
-        );
-        
-        // Corrigir strings HTML danificadas
-        appContent = appContent.replace(/res\.status\(200\)\.send\(`\s*([^`]*)`\);/gs, function(match, content) {
-          // Criar uma versão limpa do HTML
-          const cleanHTML = `
+        // Criar uma versão segura do app.js
+        const safeAppContent = `
+"use strict";
+
+// Importações usando CommonJS
+const express = require('express');
+const cors = require('cors');
+const morgan = require('morgan');
+const helmet = require('helmet');
+const fs = require('fs');
+const path = require('path');
+const mongoose = require('mongoose');
+
+// Importação de rotas
+const strategyRoutes = require('./routes/strategyRoutes');
+const userRoutes = require('./routes/userRoutes');
+const matchupRoutes = require('./routes/matchupRoutes');
+const contributionRoutes = require('./routes/contributionRoutes');
+const strategyGuideRoutes = require('./routes/strategyGuideRoutes');
+const healthRoutes = require('./routes/health');
+
+// Inicializar o aplicativo Express
+const app = express();
+
+// Middleware para verificar o estado da conexão com o banco de dados
+const dbConnectionMiddleware = (req, res, next) => {
+  // Lista de rotas que devem funcionar mesmo sem banco de dados
+  const nonDbRoutes = [
+    '/',
+    '/api/ping',
+    '/health'
+  ];
+  
+  // Se o caminho está na lista de rotas não dependentes de banco, seguir adiante
+  if (nonDbRoutes.includes(req.path)) {
+    return next();
+  }
+  
+  // Verificar se o banco de dados está conectado
+  if (!mongoose.connection || mongoose.connection.readyState !== 1) {
+    // Para APIs que retornam JSON
+    if (req.path.startsWith('/api/')) {
+      return res.status(503).json({
+        status: 'error',
+        message: 'Serviço de banco de dados indisponível. Tente novamente mais tarde.',
+        isDbConnected: false,
+        allowedRoutes: nonDbRoutes,
+        code: 'DB_CONNECTION_ERROR'
+      });
+    }
+    
+    // Para rotas que renderizam HTML
+    return res.status(503).send('Serviço de banco de dados indisponível. Tente novamente mais tarde.');
+  }
+  
+  // Banco de dados está conectado, continuar
+  next();
+};
+
+// Configuração do Middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(cors());
+app.use(helmet());
+
+// Configurar o logger
+// Garantir que o diretório de logs exista
+const logsDir = path.join(__dirname, '../logs');
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir, { recursive: true });
+}
+
+const accessLogStream = fs.createWriteStream(path.join(logsDir, 'access.log'), { flags: 'a' });
+app.use(morgan('combined', { stream: accessLogStream }));
+app.use(morgan('dev'));
+
+// Rotas básicas
+app.get('/', (req, res) => {
+  const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
+  const dbStatus = isDbConnected ? 'Conectado' : 'Desconectado';
+  const dbType = global.mockMongooseEnabled ? 'Em Memória (Fallback)' : 'MongoDB Atlas';
+  
+  res.status(200).send(\`
     <html>
       <head>
         <title>EmpiresGuide API</title>
@@ -257,11 +403,11 @@ try {
       </head>
       <body>
         <h1>EmpiresGuide API</h1>
-        <div class="status ${isDbConnected ? 'ok' : 'error'}">
-          <strong>Banco de Dados:</strong> ${dbStatus} (${dbType})
+        <div class="status \${isDbConnected ? 'ok' : 'error'}">
+          <strong>Banco de Dados:</strong> \${dbStatus} (\${dbType})
         </div>
         <div class="info">
-          <strong>Ambiente:</strong> ${process.env.NODE_ENV}
+          <strong>Ambiente:</strong> \${process.env.NODE_ENV}
         </div>
         <div class="info">
           <strong>Endpoints Ativos:</strong>
@@ -276,16 +422,48 @@ try {
         <p>© Tek Trio 2025 - Todos os direitos reservados.</p>
       </body>
     </html>
-  `;
-          return `res.status(200).send(\`${cleanHTML}\`);`;
-        });
+  \`);
+});
+
+// Aplicar middleware de verificação de banco de dados após rotas básicas
+app.use(dbConnectionMiddleware);
+
+// Rota de health check
+app.use('/health', healthRoutes);
+
+// Rotas da API
+app.use('/api/strategies', strategyRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/matchups', matchupRoutes);
+app.use('/api/contributions', contributionRoutes);
+app.use('/api/guides', strategyGuideRoutes);
+
+// Middleware de tratamento de erros
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  
+  res.status(err.status || 500).json({
+    status: 'error',
+    message: err.message || 'Erro interno do servidor',
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
+});
+
+// Middleware para rotas não encontradas
+app.use((req, res) => {
+  res.status(404).json({
+    status: 'error',
+    message: 'Rota não encontrada'
+  });
+});
+
+module.exports = app;`;
         
-        // Garantir que todas as variáveis não definidas tenham algum valor
-        appContent = appContent.replace(/isDbConnected,/g, "isDbConnected: false,");
-        appContent = appContent.replace(/allowedRoutes,/g, "allowedRoutes: nonDbRoutes,");
-        
-        fs.writeFileSync(appJsPath, appContent);
-        console.log('✅ Arquivo app.js corrigido manualmente para o Render');
+        // Escrever a versão segura do arquivo
+        fs.writeFileSync(appJsPath, safeAppContent);
+        console.log('✅ Arquivo app.js substituído por uma versão segura sem erros de sintaxe');
+      } else {
+        console.warn('⚠️ Arquivo app.js não encontrado!');
       }
     } catch (error) {
       console.error('❌ Erro ao aplicar correções manuais:', error.message);
