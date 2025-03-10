@@ -4,29 +4,10 @@ import Landmark from '../models/Landmark';
 import MapStrategy from '../models/MapStrategy';
 import CivilizationMatchup from '../models/CivilizationMatchup';
 
-// Defina uma interface para o objeto civilizationExamples para evitar erros de tipo
-interface CivilizationExample {
-  name: string;
-  strengths: string[];
-  weaknesses: string[];
-  uniqueUnits: Array<{
-    name: string;
-    description: string;
-    strategicUse: string;
-  }>;
-  uniqueTechnologies: Array<{
-    name: string;
-    effect: string;
-    strategicValue: string;
-  }>;
-}
+// Removidas definições de tipo que causavam problemas na conversão para JS
 
-interface CivilizationExamplesType {
-  [key: string]: CivilizationExample;
-}
-
-// Dados de exemplo para demonstração
-const civilizationExamples: CivilizationExamplesType = {
+// Dados de exemplo
+const civilizationExamples = {
   'Chineses': {
     name: 'Chineses',
     strengths: [
@@ -271,159 +252,181 @@ export const getExampleStrategy = async (req: Request, res: Response) => {
     };
 
     // Análise detalhada de confrontos
-    const detailedMatchups = [{
-      playerCiv: civilizationData.name,
-      enemyCiv: enemyCivData.name,
-      overallStrategy: civilizationData.name === 'Ingleses' && enemyCivData.name === 'Mongóis' ?
-        `Aproveite suas defesas fortes e arqueiros para contra-atacar a mobilidade mongol. Estabeleça uma linha defensiva sólida e force-os a enfrentar seus arqueiros.` :
-        `Utilize a sua ${civilizationData.strengths[0].toLowerCase()} contra a ${enemyCivData.weaknesses[0].toLowerCase()} do inimigo.`,
-      enemyStrengths: civilizationData.name === 'Ingleses' && enemyCivData.name === 'Mongóis' ? [
+    let overallStrategy = '';
+    let enemyStrengths = [];
+    let enemyWeaknesses = [];
+    let unitsToFocus = [];
+    let unitsToAvoid = [];
+    let earlyGameStrategy = '';
+    let midGameStrategy = '';
+    let lateGameStrategy = '';
+    let landmarkPriorities = [];
+    let criticalTechnologies = [];
+
+    if (civilizationData.name === 'Ingleses' && enemyCivData.name === 'Mongóis') {
+      overallStrategy = `Aproveite suas defesas fortes e arqueiros para contra-atacar a mobilidade mongol. Estabeleça uma linha defensiva sólida e force-os a enfrentar seus arqueiros.`;
+      enemyStrengths = [
         'Mobilidade excepcional com unidades montadas',
         'Grande capacidade de realizar raids em múltiplos pontos',
         'Arqueiros montados eficazes contra unidades isoladas',
         'Capacidade de reposicionar acampamentos rapidamente'
-      ] : ['Força principal do inimigo 1', 'Força principal do inimigo 2'],
-      enemyWeaknesses: civilizationData.name === 'Ingleses' && enemyCivData.name === 'Mongóis' ? [
+      ];
+      enemyWeaknesses = [
         'Unidades mais frágeis em combates diretos',
         'Vulnerabilidade à arqueiros em posições defensivas',
         'Base menos fortalecida e mais vulnerável a ataques diretos',
         'Dependência de uma economia baseada em ovelhas que pode ser atacada'
-      ] : ['Fraqueza principal do inimigo 1', 'Fraqueza principal do inimigo 2'],
-      unitsToFocus: civilizationData.name === 'Ingleses' ? 
-        ['Arqueiros de Longa Distância', 'Homens de Armas', 'Piqueiros'] : 
-        ['Arqueiros Montados', 'Cavalaria Pesada', 'Lanceiros'],
-      unitsToAvoid: civilizationData.name === 'Ingleses' && enemyCivData.name === 'Mongóis' ? 
-        ['Cavalaria Leve', 'Unidades isoladas fora do alcance das torres'] : 
-        ['Piqueiros', 'Infantaria Pesada'],
-      earlyGameStrategy: civilizationData.name === 'Ingleses' && enemyCivData.name === 'Mongóis' ? 
-        'Construa uma rede defensiva com torres e arqueiros para se proteger dos ataques rápidos dos Mongóis. Fortaleça sua economia com fazendas agrupadas para resistir a raids.' : 
-        'Faça raids constantes para pressionar a economia deles.',
-      midGameStrategy: civilizationData.name === 'Ingleses' && enemyCivData.name === 'Mongóis' ? 
-        'Mantenha suas unidades próximas às defesas. Use arqueiros para enfraquecer a cavalaria mongol antes que ela possa atacar. Expanda com cuidado, sempre protegendo novas expansões com torres.' : 
-        'Mantenha a pressão com ataques rápidos em múltiplas frentes.',
-      lateGameStrategy: civilizationData.name === 'Ingleses' && enemyCivData.name === 'Mongóis' ? 
-        'Avance com um exército bem formado de infantaria pesada e arqueiros, apoiados por unidades de cerco para destruir as estruturas mongóis. Use sua infantaria para proteger arqueiros e unidades de cerco.' : 
-        'Evite confrontos diretos, foque em mobilidade e controle de recursos.',
-      landmarkPriorities: civilizationData.name === 'Ingleses' && enemyCivData.name === 'Mongóis' ? [
+      ];
+      unitsToFocus = ['Arqueiros de Longa Distância', 'Homens de Armas', 'Piqueiros'];
+      unitsToAvoid = ['Cavalaria Leve', 'Unidades isoladas fora do alcance das torres'];
+      earlyGameStrategy = 'Construa uma rede defensiva com torres e arqueiros para se proteger dos ataques rápidos dos Mongóis. Fortaleça sua economia com fazendas agrupadas para resistir a raids.';
+      midGameStrategy = 'Mantenha suas unidades próximas às defesas. Use arqueiros para enfraquecer a cavalaria mongol antes que ela possa atacar. Expanda com cuidado, sempre protegendo novas expansões com torres.';
+      lateGameStrategy = 'Avance com um exército bem formado de infantaria pesada e arqueiros, apoiados por unidades de cerco para destruir as estruturas mongóis. Use sua infantaria para proteger arqueiros e unidades de cerco.';
+      landmarkPriorities = [
         'Era II: Abadia de Westminster para economia sustentável',
         'Era III: Castelo de Berkshire para produzir unidades de cerco',
         'Era IV: Palácio de Westminster para sustentar um exército maior'
-      ] : ['Prioridade de marco 1', 'Prioridade de marco 2', 'Prioridade de marco 3'],
-      criticalTechnologies: civilizationData.name === 'Ingleses' && enemyCivData.name === 'Mongóis' ? [
+      ];
+      criticalTechnologies = [
         'Aprimoramentos de Arqueiros de Longa Distância',
         'Fortificações Avançadas para torres',
         'Armadura Pesada para infantaria',
         'Tecnologias de produção de fazendas'
-      ] : ['Tecnologia importante 1', 'Tecnologia importante 2']
+      ];
+    } else {
+      overallStrategy = `Utilize a sua ${civilizationData.strengths[0].toLowerCase()} contra a ${enemyCivData.weaknesses[0].toLowerCase()} do inimigo.`;
+      enemyStrengths = ['Força principal do inimigo 1', 'Força principal do inimigo 2'];
+      enemyWeaknesses = ['Fraqueza principal do inimigo 1', 'Fraqueza principal do inimigo 2'];
+      unitsToFocus = civilizationData.name === 'Ingleses' ? 
+        ['Arqueiros de Longa Distância', 'Homens de Armas', 'Piqueiros'] : 
+        ['Arqueiros Montados', 'Cavalaria Pesada', 'Lanceiros'];
+      unitsToAvoid = ['Piqueiros', 'Infantaria Pesada'];
+      earlyGameStrategy = 'Faça raids constantes para pressionar a economia deles.';
+      midGameStrategy = 'Mantenha a pressão com ataques rápidos em múltiplas frentes.';
+      lateGameStrategy = 'Evite confrontos diretos, foque em mobilidade e controle de recursos.';
+      landmarkPriorities = ['Prioridade de marco 1', 'Prioridade de marco 2', 'Prioridade de marco 3'];
+      criticalTechnologies = ['Tecnologia importante 1', 'Tecnologia importante 2'];
+    }
+
+    const detailedMatchups = [{
+      playerCiv: civilizationData.name,
+      enemyCiv: enemyCivData.name,
+      overallStrategy: overallStrategy,
+      enemyStrengths: enemyStrengths,
+      enemyWeaknesses: enemyWeaknesses,
+      unitsToFocus: unitsToFocus,
+      unitsToAvoid: unitsToAvoid,
+      earlyGameStrategy: earlyGameStrategy,
+      midGameStrategy: midGameStrategy,
+      lateGameStrategy: lateGameStrategy,
+      landmarkPriorities: landmarkPriorities,
+      criticalTechnologies: criticalTechnologies
     }];
     
     // Informações sobre o mod selecionado
+    let modPackDescription = '';
+    let modPackEffects = [];
+    let modPackStrategicChanges = [];
+    let modPackRecommendedCivilizations = [];
+
+    if (modPack === '400 Pop and Better Stats') {
+      modPackDescription = 'Aumenta o limite de população para 400 e melhora as estatísticas de unidades';
+      modPackEffects = [
+        'Limite de população aumentado para 400',
+        'Aumento de 15% nos pontos de vida de todas as unidades',
+        'Velocidade de movimento de todas as unidades aumentada em 10%',
+        'Taxa de produção de unidades melhorada em 20%'
+      ];
+      modPackStrategicChanges = [
+        'Construa mais edifícios de produção para aproveitar o limite maior de população',
+        'Invista em unidades de cerco e formações massivas',
+        'Considere construir mais aldeões que o normal para sustentar exércitos maiores',
+        `Aproveite a estratégia de "superioridade numérica" com ${civilizationData.name}`
+      ];
+      modPackRecommendedCivilizations = ['Delhi Sultanato', 'Franceses', 'Tártaros'];
+    } else if (modPack === 'Enhanced Economics') {
+      modPackDescription = 'Modifica as mecânicas econômicas para maior eficiência de coleta e comércio';
+      modPackEffects = [
+        'Coleta de recursos 25% mais eficiente',
+        'Edifícios econômicos custam 20% menos',
+        'Rotas comerciais geram 30% mais ouro',
+        'Recurso bônus para cada mercado construído'
+      ];
+      modPackStrategicChanges = [
+        'Priorize ainda mais o desenvolvimento econômico desde o início',
+        'Construa mais postos comerciais do que o normal',
+        'Pesquise tecnologias econômicas mais cedo',
+        'Aproveite a vantagem econômica para superar oponentes com unidades de elite'
+      ];
+      modPackRecommendedCivilizations = ['Abássidas', 'Bizantinos', 'Ingleses'];
+    } else if (modPack === 'Advanced Game Settings') {
+      modPackDescription = 'Permite configurações avançadas como aumento de recursos e velocidade de jogo';
+      modPackEffects = [
+        'Controle sobre recursos iniciais',
+        'Opções de velocidade de jogo personalizáveis',
+        'Limite de população ajustável',
+        'Personalização de condições de vitória'
+      ];
+      modPackStrategicChanges = [
+        'Ajuste sua estratégia com base nas configurações específicas da partida',
+        'Aumente sua produção de unidades se os recursos forem abundantes',
+        'Em jogos mais rápidos, priorize desenvolvimento militar antecipado',
+        'Considere estratégias não convencionais em configurações personalizadas'
+      ];
+      modPackRecommendedCivilizations = ['Mongóis', 'Rus', 'Armênios'];
+    } else if (modPack === 'Permanent Bodies') {
+      modPackDescription = 'Faz com que os corpos de unidades permaneçam no campo de batalha';
+      modPackEffects = [
+        'Corpos permanecem no campo de batalha',
+        'Efeitos visuais de batalha aprimorados',
+        'Rastros de sangue persistentes',
+        'Impacto mínimo no desempenho do jogo'
+      ];
+      modPackStrategicChanges = [
+        'Use corpos como obstáculos táticos no campo de batalha',
+        'Batalhas em áreas estreitas podem resultar em bloqueios pelo acúmulo de corpos',
+        'Planeje rotas alternativas para movimentação de unidades',
+        'Considere esta mecânica ao planejar defesas e emboscadas'
+      ];
+      modPackRecommendedCivilizations = ['Ingleses', 'Chineses', 'Franceses'];
+    } else if (modPack === 'Better Balance') {
+      modPackDescription = 'Rebalanceia unidades e tecnologias para um jogo mais equilibrado';
+      modPackEffects = [
+        'Unidades mais fracas recebem buffs de balanceamento',
+        'Unidades muito poderosas são ligeiramente enfraquecidas',
+        'Tecnologias com baixa taxa de uso têm custo reduzido',
+        'Civiliziações menos populares recebem melhorias específicas'
+      ];
+      modPackStrategicChanges = [
+        'Experimente unidades anteriormente consideradas fracas',
+        'Reavalie as hierarquias de unidades tradicionais',
+        'Ajuste suas estratégias contra civilizações que receberam buffs',
+        'Busque informações atualizadas sobre os balanceamentos específicos'
+      ];
+      modPackRecommendedCivilizations = ['Delhi Sultanato', 'Malianos', 'Gurjar Pratiharas'];
+    } else {
+      modPackDescription = 'Configurações padrão do jogo sem modificações';
+      modPackEffects = [
+        'Balanceamento normal do jogo oficial',
+        'Limite de população de 200',
+        'Mecânicas padrão de recursos',
+        'Regras oficiais sem modificações'
+      ];
+      modPackStrategicChanges = [
+        'Siga as estratégias padrão para sua civilização',
+        'Utilize as unidades com balanceamento oficial',
+        'Respeite os limites padrões de população e recursos',
+        'Mantenha-se atualizado com as mudanças oficiais de balanceamento'
+      ];
+      modPackRecommendedCivilizations = ['Mongóis', 'Franceses', 'Rus'];
+    }
+
     const modPackData = {
       name: modPack || 'Padrão',
-      description: modPack === '400 Pop and Better Stats' 
-        ? 'Aumenta o limite de população para 400 e melhora as estatísticas de unidades'
-        : modPack === 'Enhanced Economics'
-        ? 'Modifica as mecânicas econômicas para maior eficiência de coleta e comércio'
-        : modPack === 'Advanced Game Settings'
-        ? 'Permite configurações avançadas como aumento de recursos e velocidade de jogo'
-        : modPack === 'Permanent Bodies'
-        ? 'Faz com que os corpos de unidades permaneçam no campo de batalha'
-        : modPack === 'Better Balance'
-        ? 'Rebalanceia unidades e tecnologias para um jogo mais equilibrado'
-        : 'Configurações padrão do jogo sem modificações',
-      effects: modPack === '400 Pop and Better Stats' 
-        ? [
-            'Limite de população aumentado para 400',
-            'Aumento de 15% nos pontos de vida de todas as unidades',
-            'Velocidade de movimento de todas as unidades aumentada em 10%',
-            'Taxa de produção de unidades melhorada em 20%'
-          ]
-        : modPack === 'Enhanced Economics'
-        ? [
-            'Coleta de recursos 25% mais eficiente',
-            'Edifícios econômicos custam 20% menos',
-            'Rotas comerciais geram 30% mais ouro',
-            'Recurso bônus para cada mercado construído'
-          ]
-        : modPack === 'Advanced Game Settings'
-        ? [
-            'Controle sobre recursos iniciais',
-            'Opções de velocidade de jogo personalizáveis',
-            'Limite de população ajustável',
-            'Personalização de condições de vitória'
-          ]
-        : modPack === 'Permanent Bodies'
-        ? [
-            'Corpos permanecem no campo de batalha',
-            'Efeitos visuais de batalha aprimorados',
-            'Rastros de sangue persistentes',
-            'Impacto mínimo no desempenho do jogo'
-          ]
-        : modPack === 'Better Balance'
-        ? [
-            'Unidades mais fracas recebem buffs de balanceamento',
-            'Unidades muito poderosas são ligeiramente enfraquecidas',
-            'Tecnologias com baixa taxa de uso têm custo reduzido',
-            'Civiliziações menos populares recebem melhorias específicas'
-          ]
-        : [
-            'Balanceamento normal do jogo oficial',
-            'Limite de população de 200',
-            'Mecânicas padrão de recursos',
-            'Regras oficiais sem modificações'
-          ],
-      strategicChanges: modPack === '400 Pop and Better Stats' 
-        ? [
-            'Construa mais edifícios de produção para aproveitar o limite maior de população',
-            'Invista em unidades de cerco e formações massivas',
-            'Considere construir mais aldeões que o normal para sustentar exércitos maiores',
-            `Aproveite a estratégia de "superioridade numérica" com ${civilizationData.name}`
-          ]
-        : modPack === 'Enhanced Economics'
-        ? [
-            'Priorize ainda mais o desenvolvimento econômico desde o início',
-            'Construa mais postos comerciais do que o normal',
-            'Pesquise tecnologias econômicas mais cedo',
-            'Aproveite a vantagem econômica para superar oponentes com unidades de elite'
-          ]
-        : modPack === 'Advanced Game Settings'
-        ? [
-            'Ajuste sua estratégia com base nas configurações específicas da partida',
-            'Aumente sua produção de unidades se os recursos forem abundantes',
-            'Em jogos mais rápidos, priorize desenvolvimento militar antecipado',
-            'Considere estratégias não convencionais em configurações personalizadas'
-          ]
-        : modPack === 'Permanent Bodies'
-        ? [
-            'Use corpos como obstáculos táticos no campo de batalha',
-            'Batalhas em áreas estreitas podem resultar em bloqueios pelo acúmulo de corpos',
-            'Planeje rotas alternativas para movimentação de unidades',
-            'Considere esta mecânica ao planejar defesas e emboscadas'
-          ]
-        : modPack === 'Better Balance'
-        ? [
-            'Experimente unidades anteriormente consideradas fracas',
-            'Reavalie as hierarquias de unidades tradicionais',
-            'Ajuste suas estratégias contra civilizações que receberam buffs',
-            'Busque informações atualizadas sobre os balanceamentos específicos'
-          ]
-        : [
-            'Siga as estratégias padrão para sua civilização',
-            'Utilize as unidades com balanceamento oficial',
-            'Respeite os limites padrões de população e recursos',
-            'Mantenha-se atualizado com as mudanças oficiais de balanceamento'
-          ],
-      recommendedCivilizations: modPack === '400 Pop and Better Stats' 
-        ? ['Delhi Sultanato', 'Franceses', 'Tártaros']
-        : modPack === 'Enhanced Economics'
-        ? ['Abássidas', 'Bizantinos', 'Ingleses']
-        : modPack === 'Advanced Game Settings'
-        ? ['Mongóis', 'Rus', 'Armênios']
-        : modPack === 'Permanent Bodies'
-        ? ['Ingleses', 'Chineses', 'Franceses']
-        : modPack === 'Better Balance'
-        ? ['Delhi Sultanato', 'Malianos', 'Gurjar Pratiharas']
-        : ['Mongóis', 'Franceses', 'Rus']
+      description: modPackDescription,
+      effects: modPackEffects,
+      strategicChanges: modPackStrategicChanges,
+      recommendedCivilizations: modPackRecommendedCivilizations
     };
 
     // Informações sobre mods alternativos
@@ -460,88 +463,129 @@ export const getExampleStrategy = async (req: Request, res: Response) => {
       }
     ].filter(mod => mod.name !== modPack);
     
+    // Constrói as recomendações com base na civilização
+    let earlyGameRecommendations = [];
+    let midGameRecommendations = [];
+    let lateGameRecommendations = [];
+    
+    if (playerCiv === 'Ingleses' || civilizationData.name === 'Ingleses') {
+      earlyGameRecommendations = [
+        `Construa fazendas próximas ao centro da cidade para aproveitar o bônus agrícola`,
+        `Treine alguns arqueiros para defesa inicial`,
+        `Construa uma rede de torres defensivas em pontos estratégicos`,
+        `Pesquise melhorias para arqueiros assim que possível`
+      ];
+      midGameRecommendations = [
+        `Expanda sua rede de fazendas para fortalecer sua economia`,
+        `Produza uma combinação de arqueiros de longa distância e infantaria pesada`,
+        `Estabeleça posições defensivas firmes com torres`,
+        `Foque em pesquisas que melhorem suas unidades principais`
+      ];
+      lateGameRecommendations = [
+        `Mantenha uma economia forte baseada em fazendas e comércio`,
+        `Forme um exército equilibrado com foco em arqueiros de longa distância e infantaria`,
+        `Use unidades de cerco para atacar fortificações inimigas`,
+        `Aproveite suas defesas para desgastar o inimigo antes de contra-atacar`
+      ];
+    } else {
+      earlyGameRecommendations = [
+        `Comece criando ovelhas para uma economia forte`,
+        `Construa um posto comercial o mais cedo possível`,
+        `Treine arqueiros montados para harass`,
+        `Explore o mapa com sua cavalaria leve`
+      ];
+      midGameRecommendations = [
+        `Expanda sua economia com novas vilas`,
+        `Produza uma mistura de cavalaria e arqueiros montados`,
+        `Foque em ataques rápidos e fuga`,
+        `Evite confrontos diretos com infantaria pesada inimiga`
+      ];
+      lateGameRecommendations = [
+        `Controle recursos-chave no mapa`,
+        `Mantenha pressão constante com raids`,
+        `Desenvolva cavalaria pesada para combates decisivos`,
+        `Use a mobilidade para atacar pontos fracos do inimigo`
+      ];
+    }
+
+    // Define informações do mapa
+    const mapData = {
+      name: 'Pradaria Aberta',
+      type: 'Terra',
+      generalStrategy: 'Utilize a mobilidade das suas unidades montadas para controlar o mapa aberto.',
+      resourceControl: 'Garanta o controle de pontos de recursos espalhados pelo mapa.',
+      expansionPriorities: 'Expanda para áreas abertas onde sua mobilidade é mais vantajosa.',
+      resourceDistribution: {
+        food: 'Médio, principalmente de ovelhas e caça',
+        gold: 'Limitado, concentrado no centro do mapa',
+        wood: 'Abundante nas bordas do mapa',
+        stone: 'Escasso, apenas em algumas áreas específicas'
+      },
+      recommendedStrategies: {
+        early: [
+          'Explore rapidamente o mapa',
+          'Assegure recursos próximos à sua base',
+          'Construa postos avançados para visibilidade'
+        ],
+        mid: [
+          'Controle o centro do mapa',
+          'Use a mobilidade para raids constantes',
+          'Defenda rotas comerciais importantes'
+        ],
+        late: [
+          'Mantenha o controle de recursos-chave',
+          'Use formações de unidades espalhadas',
+          'Ataque de múltiplas direções simultaneamente'
+        ]
+      }
+    };
+
+    // Define o caminho para vitória
+    let victoryPathPrimary = '';
+    let victoryPathSecondary = '';
+    let victoryPathRequirements = [];
+    let victoryPathTiming = '';
+    let victoryPathSummary = '';
+
+    if (civilizationData.name === 'Ingleses') {
+      victoryPathPrimary = 'Defesa Estratégica e Contra-ataque';
+      victoryPathSecondary = 'Superioridade Militar';
+      victoryPathRequirements = ['Economia agrícola forte', 'Rede de torres defensivas', 'Exército equilibrado'];
+      victoryPathTiming = 'Final de Jogo';
+      if (enemyCivData.name === 'Mongóis') {
+        victoryPathSummary = 'Defenda-se dos ataques iniciais dos Mongóis, estabeleça uma economia forte baseada em fazendas, e então contra-ataque com uma força equilibrada de arqueiros de longa distância e infantaria pesada, apoiados por tecnologias avançadas.';
+      } else {
+        victoryPathSummary = 'Use sua mobilidade e velocidade para dominar o mapa e atacar pontos fracos do inimigo.';
+      }
+    } else {
+      victoryPathPrimary = 'Destruição de Marcos';
+      victoryPathSecondary = 'Domínio Econômico';
+      victoryPathRequirements = ['Unidades de Cerco', 'Economia Forte', 'Mobilidade'];
+      victoryPathTiming = 'Meio/Final de Jogo';
+      victoryPathSummary = 'Use sua mobilidade e velocidade para dominar o mapa e atacar pontos fracos do inimigo.';
+    }
+
+    const victoryPath = {
+      primary: victoryPathPrimary,
+      secondary: victoryPathSecondary,
+      requirements: victoryPathRequirements,
+      timing: victoryPathTiming,
+      summary: victoryPathSummary
+    };
+
+    // Montar o objeto final da estratégia
     const exampleStrategy = {
       civilization: civilizationData,
       recommendations: {
-        earlyGame: playerCiv === 'Ingleses' || civilizationData.name === 'Ingleses' ? [
-          `Construa fazendas próximas ao centro da cidade para aproveitar o bônus agrícola`,
-          `Treine alguns arqueiros para defesa inicial`,
-          `Construa uma rede de torres defensivas em pontos estratégicos`,
-          `Pesquise melhorias para arqueiros assim que possível`
-        ] : [
-          `Comece criando ovelhas para uma economia forte`,
-          `Construa um posto comercial o mais cedo possível`,
-          `Treine arqueiros montados para harass`,
-          `Explore o mapa com sua cavalaria leve`
-        ],
-        midGame: playerCiv === 'Ingleses' || civilizationData.name === 'Ingleses' ? [
-          `Expanda sua rede de fazendas para fortalecer sua economia`,
-          `Produza uma combinação de arqueiros de longa distância e infantaria pesada`,
-          `Estabeleça posições defensivas firmes com torres`,
-          `Foque em pesquisas que melhorem suas unidades principais`
-        ] : [
-          `Expanda sua economia com novas vilas`,
-          `Produza uma mistura de cavalaria e arqueiros montados`,
-          `Foque em ataques rápidos e fuga`,
-          `Evite confrontos diretos com infantaria pesada inimiga`
-        ],
-        lateGame: playerCiv === 'Ingleses' || civilizationData.name === 'Ingleses' ? [
-          `Mantenha uma economia forte baseada em fazendas e comércio`,
-          `Forme um exército equilibrado com foco em arqueiros de longa distância e infantaria`,
-          `Use unidades de cerco para atacar fortificações inimigas`,
-          `Aproveite suas defesas para desgastar o inimigo antes de contra-atacar`
-        ] : [
-          `Controle recursos-chave no mapa`,
-          `Mantenha pressão constante com raids`,
-          `Desenvolva cavalaria pesada para combates decisivos`,
-          `Use a mobilidade para atacar pontos fracos do inimigo`
-        ]
+        earlyGame: earlyGameRecommendations,
+        midGame: midGameRecommendations,
+        lateGame: lateGameRecommendations
       },
       matchups: detailedMatchups,
       landmarks: landmarksData,
       phases: detailedPhases,
-      map: {
-        name: 'Pradaria Aberta',
-        type: 'Terra',
-        generalStrategy: 'Utilize a mobilidade das suas unidades montadas para controlar o mapa aberto.',
-        resourceControl: 'Garanta o controle de pontos de recursos espalhados pelo mapa.',
-        expansionPriorities: 'Expanda para áreas abertas onde sua mobilidade é mais vantajosa.',
-        resourceDistribution: {
-          food: 'Médio, principalmente de ovelhas e caça',
-          gold: 'Limitado, concentrado no centro do mapa',
-          wood: 'Abundante nas bordas do mapa',
-          stone: 'Escasso, apenas em algumas áreas específicas'
-        },
-        recommendedStrategies: {
-          early: [
-            'Explore rapidamente o mapa',
-            'Assegure recursos próximos à sua base',
-            'Construa postos avançados para visibilidade'
-          ],
-          mid: [
-            'Controle o centro do mapa',
-            'Use a mobilidade para raids constantes',
-            'Defenda rotas comerciais importantes'
-          ],
-          late: [
-            'Mantenha o controle de recursos-chave',
-            'Use formações de unidades espalhadas',
-            'Ataque de múltiplas direções simultaneamente'
-          ]
-        }
-      },
-      victoryPath: {
-        primary: civilizationData.name === 'Ingleses' ? 'Defesa Estratégica e Contra-ataque' : 'Destruição de Marcos',
-        secondary: civilizationData.name === 'Ingleses' ? 'Superioridade Militar' : 'Domínio Econômico',
-        requirements: civilizationData.name === 'Ingleses' ? 
-          ['Economia agrícola forte', 'Rede de torres defensivas', 'Exército equilibrado'] : 
-          ['Unidades de Cerco', 'Economia Forte', 'Mobilidade'],
-        timing: civilizationData.name === 'Ingleses' ? 'Final de Jogo' : 'Meio/Final de Jogo',
-        summary: civilizationData.name === 'Ingleses' && enemyCivData.name === 'Mongóis' ? 
-          'Defenda-se dos ataques iniciais dos Mongóis, estabeleça uma economia forte baseada em fazendas, e então contra-ataque com uma força equilibrada de arqueiros de longa distância e infantaria pesada, apoiados por tecnologias avançadas.' : 
-          'Use sua mobilidade e velocidade para dominar o mapa e atacar pontos fracos do inimigo.'
-      },
-      // Adicionar informações sobre mods
+      map: mapData,
+      victoryPath: victoryPath,
       modPack: modPackData,
       modPackAlternatives: modPackAlternatives
     };
@@ -554,9 +598,9 @@ export const getExampleStrategy = async (req: Request, res: Response) => {
 };
 
 // Função para lidar com o banco de dados em memória
-const getModelWithFallback = (modelName: any) => {
+const getModelWithFallback = (modelName) => {
   // Se estamos usando o banco de dados em memória, retorna o modelo apropriado
-  if ((global as any).mockMongooseEnabled) {
+  if (global.mockMongooseEnabled) {
     // Usa o mongoose mockado global
     return modelName;
   }
@@ -564,7 +608,7 @@ const getModelWithFallback = (modelName: any) => {
   return modelName;
 };
 
-export const getComprehensiveStrategy = async (req: Request, res: Response) => {
+export const getComprehensiveStrategy = async (req, res) => {
   try {
     const { 
       playerCivilization, 
@@ -593,7 +637,7 @@ export const getComprehensiveStrategy = async (req: Request, res: Response) => {
     // Busca matchups com civilizações inimigas
     const CivMatch = getModelWithFallback(CivilizationMatchup);
     const matchups = enemyCivilizations && enemyCivilizations.length > 0 
-      ? await Promise.all(enemyCivilizations.map(async (enemyCiv: string) => {
+      ? await Promise.all(enemyCivilizations.map(async (enemyCiv) => {
           const matchup = await CivMatch.findOne({ 
             playerCiv: playerCivilization, 
             enemyCiv 
@@ -626,7 +670,7 @@ export const getComprehensiveStrategy = async (req: Request, res: Response) => {
   }
 };
 
-export const getCivilizationDetails = async (req: Request, res: Response) => {
+export const getCivilizationDetails = async (req, res) => {
   try {
     const { id } = req.params;
     const Civ = getModelWithFallback(Civilization);
@@ -642,7 +686,7 @@ export const getCivilizationDetails = async (req: Request, res: Response) => {
   }
 };
 
-export const getCivilizationLandmarks = async (req: Request, res: Response) => {
+export const getCivilizationLandmarks = async (req, res) => {
   try {
     const { id } = req.params;
     const Civ = getModelWithFallback(Civilization);
@@ -661,7 +705,7 @@ export const getCivilizationLandmarks = async (req: Request, res: Response) => {
   }
 };
 
-export const getEraStrategy = async (req: Request, res: Response) => {
+export const getEraStrategy = async (req, res) => {
   try {
     const { civId, era } = req.params;
     const Civ = getModelWithFallback(Civilization);
@@ -671,8 +715,8 @@ export const getEraStrategy = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Civilização não encontrada' });
     }
     
-    // Usamos type assertion para acessar a propriedade eraStrategies
-    const civData = civilization as any;
+    // Acessamos a propriedade eraStrategies
+    const civData = civilization;
     const eraStrategy = civData.eraStrategies && civData.eraStrategies[era];
     
     if (!eraStrategy) {
@@ -685,7 +729,7 @@ export const getEraStrategy = async (req: Request, res: Response) => {
   }
 };
 
-export const getMatchupStrategy = async (req: Request, res: Response) => {
+export const getMatchupStrategy = async (req, res) => {
   try {
     const { playerCiv, enemyCiv } = req.query;
     
@@ -726,13 +770,13 @@ export const getMatchupStrategy = async (req: Request, res: Response) => {
     res.status(500).json({ 
       success: false,
       message: 'Erro ao buscar estratégia de matchup',
-      error: (error as Error).message
+      error: error.message
     });
   }
 };
 
 // Função auxiliar para criar uma estratégia personalizada quando não há matchup específico
-function createMockStrategy(playerCiv: string, enemyCiv: string) {
+function createMockStrategy(playerCiv, enemyCiv) {
   return {
     playerCiv,
     enemyCiv,
@@ -796,7 +840,7 @@ function createMockStrategy(playerCiv: string, enemyCiv: string) {
   };
 }
 
-export const getMapStrategy = async (req: Request, res: Response) => {
+export const getMapStrategy = async (req, res) => {
   try {
     const { mapId } = req.params;
     const MapStrat = getModelWithFallback(MapStrategy);
@@ -813,12 +857,12 @@ export const getMapStrategy = async (req: Request, res: Response) => {
 };
 
 // Funções auxiliares
-function generateGamePhaseStrategy(gamePhase: string, civilization: any, matchups: any[]) {
+function generateGamePhaseStrategy(gamePhase, civilization, matchups) {
   // Implementação básica - pode ser expandida com lógica mais complexa
   if (!civilization) return null;
   
   let baseStrategy;
-  const civData = civilization as any;
+  const civData = civilization;
   
   switch (gamePhase) {
     case 'early':
@@ -855,17 +899,9 @@ function generateGamePhaseStrategy(gamePhase: string, civilization: any, matchup
   return baseStrategy;
 }
 
-function determineVictoryPath(victoryFocus: string, civilization: any, mapStrategy: any) {
+function determineVictoryPath(victoryFocus, civilization, mapStrategy) {
   // Implementação básica para recomendações de caminho para vitória
-  type StrategyType = {
-    recommendation: string;
-    buildingPriority: string[];
-    unitFocus: string[];
-    civilizationSpecific?: string;
-    mapSpecific?: string;
-  };
-
-  const strategies: Record<string, StrategyType> = {
+  const strategies = {
     sacred: {
       recommendation: 'Controle locais sagrados para acumular pontos de vitória.',
       buildingPriority: ['Templos', 'Torres de Vigia', 'Fortificações'],
@@ -896,7 +932,7 @@ function determineVictoryPath(victoryFocus: string, civilization: any, mapStrate
     }
   };
   
-  const defaultStrategy: StrategyType = {
+  const defaultStrategy = {
     recommendation: 'Adapte sua estratégia com base nos recursos disponíveis e nas fraquezas do inimigo.',
     buildingPriority: ['Estruturas Militares', 'Estruturas Econômicas'],
     unitFocus: ['Unidades Balanceadas'],
@@ -904,11 +940,11 @@ function determineVictoryPath(victoryFocus: string, civilization: any, mapStrate
     mapSpecific: ''
   };
 
-  const baseStrategy: StrategyType = strategies[victoryFocus as keyof typeof strategies] || defaultStrategy;
+  const baseStrategy = strategies[victoryFocus] || defaultStrategy;
     
   // Adiciona informações específicas da civilização quando disponíveis
   if (civilization) {
-    const civName = typeof civilization === 'string' ? civilization : (civilization as any).name;
+    const civName = typeof civilization === 'string' ? civilization : civilization.name;
     baseStrategy.civilizationSpecific = `Use os pontos fortes dos ${civName} para este caminho de vitória.`;
   }
   
@@ -918,4 +954,4 @@ function determineVictoryPath(victoryFocus: string, civilization: any, mapStrate
   }
   
   return baseStrategy;
-} 
+}
