@@ -117,6 +117,10 @@ function simplifyTsToJs(content) {
   content = content.replace(/console\.log\(`🔗 API URL: http/g, 
                           'console.log(`🔗 API URL: http://${host === \'0.0.0.0\' ? \'localhost\' : host}:${PORT}`');
   
+  // 9.10 Corrigir problema específico no arquivo StrategyController.js
+  content = content.replace(/uniqueTechnologies\{/g, 'uniqueTechnologies: [')
+           .replace(/\}\s*\]/g, '}]');
+  
   // 9.10 Certificar-se que não haja backticks corrompidos
   content = content.replace(/(`.*?)\\n(.*?`)/g, '$1$2');
   
